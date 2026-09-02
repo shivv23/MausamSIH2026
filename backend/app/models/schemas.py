@@ -189,3 +189,142 @@ class HomepageResponse(BaseModel):
     generated_at: datetime
     metadata: dict[str, Any] = {}
     cards: list[HomepageCard]
+
+
+# ---- My Day activity engine ----------------------------------------------
+
+class ActivityWindow(BaseModel):
+    """A graded time slot for an activity within a day."""
+
+    activity: ActivityType
+    start: str  # HH:MM (local, Asia/Kolkata)
+    end: str  # HH:MM
+    score: float = Field(..., ge=0, le=100)
+    level: str
+    summary: str = ""
+    factors: list[FactorScore] = []
+
+
+class ActivityInput(BaseModel):
+    type: ActivityType
+    label: str = ""
+    days: list[int] = []  # 0=Mon ... 6=Sun; empty = daily
+    preferred_start: Optional[str] = None  # HH:MM
+    preferred_end: Optional[str] = None  # HH:MM
+    location: Optional[GeoPoint] = None
+
+
+class Activity(BaseModel):
+    id: str
+    type: ActivityType
+    label: str = ""
+    days: list[int] = []
+    preferred_start: Optional[str] = None
+    preferred_end: Optional[str] = None
+    loc: Optional[GeoPoint] = None
+
+
+class MyDayResponse(BaseModel):
+    user_id: str
+    date: str  # YYYY-MM-DD
+    city: Optional[str]
+    summary: str
+    best_window: str
+    slots: list[ActivityWindow] = []
+
+
+# ---- Ask Mausam -----------------------------------------------------------
+
+class AskIntent(str, Enum):
+    RUN = "should_i_run"
+    TRAVEL = "should_i_travel"
+    IRRIGATE = "should_i_irrigate"
+    BEACH = "beach_safety"
+    SCHOOL = "school_commute"
+    OUTDOOR = "outdoor_event"
+    FROST = "frost_risk"
+    GENERAL = "general_brief"
+
+
+class AskRequest(BaseModel):
+    user_id: str
+    question: str
+    city: Optional[str] = "pune"
+    scenario: Optional[str] = None
+    context: dict[str, Any] = {}
+
+
+class AskResponse(BaseModel):
+    intent: AskIntent
+    answer: str
+    verbatim: bool = False
+    why: list[str] = []
+    score: Optional[float] = None
+    level: Optional[str] = None
+    source: ProviderName
+
+
+# ---- Alerts / disaster simulation ------------------------------------------
+
+class WarningSeverity(str, Enum):
+    GREEN = "green"
+    YELLOW = "yellow"
+    ORANGE = "orange"
+    RED = "red"
+
+
+class GeoPolygon(BaseModel):
+    """GeoJSON-style polygon (ring of [lon, lat] pairs, closed)."""
+
+    type: str = "Polygon"
+    coordinates: list[list[float]] = Field(..., description="ring: [[lon,lat],...]")
+
+
+class DisasterAlert(BaseModel):
+    id: str
+    severity: WarningSeverity
+    event_type: str  # e.g. 'heavy_rain', 'cyclone', 'heatwave', 'thunderstorm'
+    headline: str
+    detail: str = ""
+    region: str  # district/zone label
+    polygon: GeoPolygon
+    issued_by: str = "IMD"
+    issued_at: datetime
+    valid_until: datetime
+    actionable: list[str] = []  # concrete decisions for the user
+
+
+class AlertSimulationRequest(BaseModel):
+    severity: WarningSeverity = WarningSeverity.ORANGE
+    event_type: str = "heavy_rain"
+    headline: str = "Heavy rain expected"
+    detail: str = ""
+    region: str = "Pune"
+    impact: list[str] = ["flooding on low-lying roads", "traffic disruption", "tree fall risk"]
+    valid_hours: int = Field(24, ge=1, le=168)
+    center: Optional[GeoPoint] = None  # defaults to a city anchor
+    radius_km: Optional[float] = Field(None, ge=1, le=500)
+
+
+class AlertSummary(BaseModel):
+    id: str
+    severity: WarningSeverity
+    event_type: str
+    headline: str
+    region: str
+    issued_at: datetime
+    valid_until: datetime
+
+
+class PushTarget(BaseModel):
+    user_id: str
+    registered_city: Optional[str]
+    in_polygon: bool
+    headline: str
+    body: str
+    fcm_payload: dict[str, Any] = {}
+
+
+class SimulationResult(BaseModel):
+    alert: DisasterAlert
+    affected_users: list[PushTarget] = []

@@ -87,10 +87,10 @@ class MockProvider(BaseProvider):
 
 
 class WeatherRegistry:
-    """Route provider requests. Fallback chain: primary -> mock -> cache."""
+    """Route provider requests. Fallback chain: primary (IMD) -> mock -> cache."""
 
-    def __init__(self, scenario: str = "clear", enable_mock: bool = True):
-        self.primary = None  # real IMD adapter plugged in during SIH
+    def __init__(self, scenario: str = "clear", enable_mock: bool = True, primary=None):
+        self.primary = primary  # real IMD adapter; None keeps the demo offline-first
         self.mock = MockProvider(scenario) if enable_mock else None
 
     async def get(self, location: GeoPoint, data_type: str = "current") -> WeatherData:
@@ -134,3 +134,17 @@ def scenario_for(city: str, default: str = "clear") -> str:
         "chandigarh": "frost_night",
     }
     return table.get((city or "").strip().lower(), default)
+
+
+def make_registry(scenario: str = "clear", city: str | None = None) -> WeatherRegistry:
+    """Build the weather registry, wiring in the IMD adapter when enabled.
+
+    Keeps the mock fallback so the offline demo is always deterministic unless
+    ``settings.enable_imd`` is explicitly truthy.
+    """
+    from app.core.config import settings
+    primary = None
+    if settings.enable_imd:
+        from app.providers.imd import IMDProvider
+        primary = IMDProvider(token=settings.imd_token)
+    return WeatherRegistry(scenario=scenario or scenario_for(city), enable_mock=True, primary=primary)

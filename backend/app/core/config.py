@@ -15,6 +15,15 @@ class Settings(BaseSettings):
     default_city: str = "pune"
     default_scenario: str = "clear"
 
+    # Real-data wiring: set ENABLE_IMD=1 (and optionally IMD_TOKEN) to use the
+    # live IMD adapter; otherwise the mock keeps the offline demo deterministic.
+    enable_imd: bool = False
+    imd_token: str | None = None
+
+    # Persistence: set DATABASE_ENABLED=1 + a reachable DATABASE_URL to use the
+    # Postgres/PostGIS ORM store; otherwise the in-memory store powers the demo.
+    database_enabled: bool = False
+
     # Infrastructure (post-SIH wiring; not required for mock demo)
     database_url: str = "postgresql+asyncpg://mausam:mausam@localhost:5432/mausam"
     redis_url: str = "redis://localhost:6379/0"

@@ -74,6 +74,55 @@ export interface UserProfile {
   city?: string;
 }
 
+// Ask Mausam / My Day / activities.
+
+export type AskIntent =
+  | 'should_i_run'
+  | 'should_i_travel'
+  | 'should_i_irrigate'
+  | 'beach_safety'
+  | 'school_commute'
+  | 'outdoor_event'
+  | 'frost_risk'
+  | 'general_brief';
+
+export interface AskResponse {
+  intent: AskIntent;
+  answer: string;
+  verbatim?: boolean;
+  why: string[];
+  score?: number;
+  level?: string;
+  source: string;
+}
+
+export interface ActivityWindow {
+  activity: string;
+  start: string;
+  end: string;
+  score: number;
+  level: string;
+  summary: string;
+}
+
+export interface MyDayResponse {
+  user_id: string;
+  date: string;
+  city?: string;
+  summary: string;
+  best_window: string;
+  slots: ActivityWindow[];
+}
+
+export interface Activity {
+  id: string;
+  type: string;
+  label: string;
+  days: number[];
+  preferred_start?: string;
+  preferred_end?: string;
+}
+
 // Persona catalog used by onboarding.
 export interface PersonaOption {
   key: string;
@@ -92,4 +141,22 @@ export const PERSONAS: PersonaOption[] = [
   { key: 'agriculture', label: 'Farming', icon: '🌾', color: '#00695C', description: 'Irrigation, frost, planting' },
   { key: 'commuter', label: 'Commuter', icon: '🚗', color: '#455A64', description: 'Route weather, fog, storm' },
   { key: 'events', label: 'Events', icon: '🎉', color: '#E65100', description: 'Outdoor event windows' },
+];
+
+// Activity types users can add to plan their day.
+export interface ActivityTypeOption {
+  key: string;
+  label: string;
+  icon: string;
+}
+
+export const ACTIVITY_TYPES: ActivityTypeOption[] = [
+  { key: 'run', label: 'Run', icon: '🏃' },
+  { key: 'cycle', label: 'Cycle', icon: '🚴' },
+  { key: 'outdoor_gym', label: 'Outdoor Gym', icon: '🏋️' },
+  { key: 'commute', label: 'Commute', icon: '🚗' },
+  { key: 'school', label: 'School Drop', icon: '🎒' },
+  { key: 'beach', label: 'Beach', icon: '🏖️' },
+  { key: 'farm_irrigation', label: 'Irrigation', icon: '💧' },
+  { key: 'event', label: 'Outdoor Event', icon: '🎉' },
 ];

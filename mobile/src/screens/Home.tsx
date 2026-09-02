@@ -1,318 +1,207 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  RefreshControl,
-  TouchableOpacity,
-  ActivityIndicator,
-  Alert,
-  Modal,
-} from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  fetchHomepage,
-  loadCachedHomepage,
-  clearProfile,
-  type FetchResult,
-} from '../api/client';
-import type { HomepageCard, HomepageResponse, UserProfile } from '../types';
-import { colors, scoreColor, phaseColor } from '../theme';
+import type { Card, Homepage, Lang, PersonaKey } from '../engine';
+import { L, PERSONAS } from '../engine';
+import { t } from '../i18n';
+import { colors } from '../theme';
+import { SectionHeader } from '../components/ui';
+import { HeroCard, WarningCard, ImpactCard, MyDayCard, BriefCard, HourlyStrip, DailyStrip } from '../components/cards';
+import { ExplainSheet } from '../components/ExplainSheet';
 
 interface Props {
-  profile: UserProfile;
-  goHome: () => void;
+  hp: Homepage;
+  lang: Lang;
+  offline: boolean;
+  onOpenMyDay: () => void;
+  onOpenAlerts: () => void;
+  onOpenMe: () => void;
+  onOpenAR: () => void;
+  onOpenSocial: () => void;
+  onRedoOnboarding: () => void;
+  onRetry: () => void;
 }
 
-export default function Home({ profile, goHome }: Props) {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [res, setRes] = useState<HomepageResponse | null>(null);
-  const [offline, setOffline] = useState(false);
-  const [message, setMessage] = useState<string | undefined>();
-  const [error, setError] = useState<string | undefined>();
-  const [explaining, setExplaining] = useState<HomepageCard | null>(null);
+export default function Home({ hp, lang, offline, onOpenMyDay, onOpenAlerts, onOpenMe, onOpenAR, onOpenSocial, onRedoOnboarding, onRetry }: Props) {
+  const [filter, setFilter] = useState<PersonaKey | null>(null);
+  const [explaining, setExplaining] = useState<Card | null>(null);
+  const [hiddenTypes, setHiddenTypes] = useState<Card['type'][]>([]);
 
-  const load = useCallback(
-    async (showSpinner = true) => {
-      if (showSpinner) setLoading(true);
-      const result: FetchResult = await fetchHomepage(profile);
-      if (result.ok && result.data) {
-        setRes(result.data);
-        setOffline(result.offline);
-        setMessage(result.message);
-        setError(undefined);
-      } else {
-        setError(result.message || 'Unable to load homepage.');
-      }
-      if (showSpinner) setLoading(false);
-    },
-    [profile],
-  );
-
-  useEffect(() => {
-    // optimistic: render cache immediately, then fresh data
-    loadCachedHomepage().then((c) => {
-      if (c && !res) {
-        setRes(c.res);
-        setOffline(true);
-        setMessage(`Offline (cached ${new Date(c.ts).toLocaleTimeString()})`);
-      }
-    });
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile.user_id, profile.city]);
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await load(false);
-    setRefreshing(false);
-  }, [load]);
-
-  const reset = () => {
-    Alert.alert('Log out', 'Clear this profile and go back to onboarding?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Log out', style: 'destructive', onPress: async () => { await clearProfile(); goHome(); } },
-    ]);
-  };
-
-  if (loading && !res) {
-    return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Personalizing your homepage…</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (error && !res) {
-    return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.center}>
-          <Text style={styles.errorTitle}>Couldn’t reach Mausam 👋</Text>
-          <Text style={styles.errorBody}>{error}</Text>
-          <TouchableOpacity style={styles.retry} onPress={() => void load()}>
-            <Text style={styles.retryText}>Retry</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={reset}>
-            <Text style={styles.resetLink}>Back to onboarding</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (!res) return null;
+  const greetKey = hp.hour < 5 ? 'good_night' : hp.hour < 12 ? 'good_morning' : hp.hour < 17 ? 'good_afternoon' : hp.hour < 22 ? 'good_evening' : 'good_night';
+  const visible = filter
+    ? hp.cards.filter((c) => (c.persona === filter || c.type === 'severe_warning') && !hiddenTypes.includes(c.type))
+    : hp.cards.filter((c) => !hiddenTypes.includes(c.type));
+  const handleHide = (c: Card) => setHiddenTypes((prev) => (prev.includes(c.type) ? prev : [...prev, c.type]));
+  const alertCount = hp.pinned.length + hp.cards.filter((c) => c.phase === 'official' || (c.score !== undefined && c.score < 40)).length;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView
-        contentContainerStyle={styles.container}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
-        }
-      >
-        {/* Header */}
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        {/* header */}
         <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>Good {greet(res)}</Text>
-            <Text style={styles.location}>📍 {res.city || profile.city || 'India'}</Text>
-          </View>
-          <TouchableOpacity onPress={reset} accessibilityRole="button" accessibilityLabel="Reset profile">
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{initials(profile.user_id)}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.greeting}>{t(lang, greetKey)}, {L(lang, hp.user.name, hp.user.nameHi)}</Text>
+            <View style={styles.updatedRow}>
+              <View style={[styles.dot, { backgroundColor: offline ? '#F59E0B' : '#10B981' }]} />
+              <Text style={styles.updated}>{t(lang, 'updated')} {hp.freshness} · IMD · CPCB</Text>
             </View>
+          </View>
+          <View style={styles.headerRight}>
+            <TouchableOpacity style={styles.iconBtn} onPress={onOpenAlerts}>
+              <Text style={{ fontSize: 18 }}>🔔</Text>
+              {alertCount > 0 ? (
+                <View style={styles.badge}><Text style={styles.badgeText}>{alertCount}</Text></View>
+              ) : null}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.avatar} onPress={onOpenMe}>
+              <Text style={styles.avatarText}>{hp.user.name[0]}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {offline ? (
+          <View style={styles.offlineBanner}>
+            <Text style={styles.offlineText}>📡 {t(lang, 'offline_banner')} 07:42 · WatermelonDB</Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={onRetry}><Text style={styles.retryText}>{t(lang, 'offline_retry')}</Text></TouchableOpacity>
+          </View>
+        ) : null}
+
+        {/* simulated official push notification */}
+        {hp.scenario.warning ? (
+          <View style={styles.pushCard}>
+            <View style={styles.pushRow}>
+              <Text style={styles.pushApp}>MAUSAM · {t(lang, 'push_now')} · {hp.scenario.warning.source}</Text>
+              <Text style={styles.pushTime}>{t(lang, 'push_just_now')}</Text>
+            </View>
+            <Text style={styles.pushTitle}>
+              {hp.scenario.warning.severity === 'red' ? '🚨' : '⚠️'} {L(lang, hp.scenario.warning.headline, hp.scenario.warning.headlineHi)}
+            </Text>
+            <Text style={styles.pushBody} numberOfLines={3}>{L(lang, hp.scenario.warning.body, hp.scenario.warning.bodyHi)}</Text>
+            <View style={styles.pushActions}>
+              {hp.scenario.warning.actions.map((a, i) => (
+                <View key={i} style={styles.pushActionPill}><Text style={styles.pushActionText}>✓ {L(lang, a, hp.scenario.warning?.actionsHi?.[i] ?? a)}</Text></View>
+              ))}
+            </View>
+            <Text style={styles.pushOfficial}>🔒 {t(lang, 'push_official')}</Text>
+          </View>
+        ) : null}
+
+        <HeroCard hp={hp} lang={lang} />
+
+        {hp.pinned.map((c) => (
+          <WarningCard key={c.id} card={c} lang={lang} onExplain={setExplaining} />
+        ))}
+
+        {/* persona chips */}
+        <View style={{ marginTop: 4 }}>
+          <SectionHeader title={t(lang, 'for_you')} sub={t(lang, 'ranked_by')} />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipBar}>
+            <TouchableOpacity
+              style={[styles.personaChip, !filter ? styles.chipActiveDark : styles.chipInactive]}
+              onPress={() => setFilter(null)}
+            >
+              <Text style={!filter ? styles.chipTextWhite : styles.chipTextDark}>{L(lang, 'All', 'सभी')}</Text>
+            </TouchableOpacity>
+            {hp.user.personas.map((p, i) => {
+              const m = PERSONAS[p];
+              const active = filter === p;
+              return (
+                <TouchableOpacity
+                  key={p}
+                  style={[styles.personaChip, active ? { backgroundColor: m.color, borderColor: m.color } : { backgroundColor: '#fff', borderColor: `${m.color}44` }]}
+                  onPress={() => setFilter(active ? null : p)}
+                >
+                  <Text style={[styles.personaChipTextM, { color: active ? '#fff' : m.color }]}>
+                    {m.icon} {L(lang, m.label, m.labelHi)}{i === 0 ? ' ★' : ''}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {/* ranked cards */}
+        <View style={styles.cards}>
+          {visible.slice(0, 2).map((c, i) => (
+            <ImpactCard key={c.id} card={c} lang={lang} onExplain={setExplaining} rank={i} />
+          ))}
+          {hp.myDay.length > 0 ? <MyDayCard items={hp.myDay} lang={lang} onOpen={onOpenMyDay} /> : null}
+          {visible.slice(2, 4).map((c, i) => (
+            <ImpactCard key={c.id} card={c} lang={lang} onExplain={setExplaining} rank={i + 2} />
+          ))}
+          <BriefCard text={hp.brief} lang={lang} />
+          {visible.slice(4).map((c, i) => (
+            <ImpactCard key={c.id} card={c} lang={lang} onExplain={setExplaining} rank={i + 4} />
+          ))}
+          <HourlyStrip hp={hp} lang={lang} />
+          <DailyStrip hp={hp} lang={lang} />
+        </View>
+
+        <View style={styles.features}>
+          <TouchableOpacity style={styles.featBtn} onPress={onOpenAR}>
+            <Text style={styles.featIcon}>🔭</Text>
+            <Text style={styles.featText}>{t(lang, 'ar_launch')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.featBtn} onPress={onOpenSocial}>
+            <Text style={styles.featIcon}>💬</Text>
+            <Text style={styles.featText}>{t(lang, 'social_launch')}</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.personaRow}>
-          {res.personas.map((p) => (
-            <View key={p} style={styles.personaChip}>
-              <Text style={styles.personaChipText}>{p}</Text>
-            </View>
-          ))}
+        <View style={styles.footer}>
+          <Text style={styles.footerTrust}>{t(lang, 'footer_trust')}</Text>
+          <Pressable onPress={onRedoOnboarding}>
+            <Text style={styles.report}>🚩 {t(lang, 'report')}</Text>
+          </Pressable>
         </View>
-
-        {(offline || message) && (
-          <View style={[styles.banner, offline ? styles.bannerOffline : styles.bannerInfo]}>
-            <Text style={styles.bannerText}>{message || (offline ? 'Offline — showing cached data' : '')}</Text>
-          </View>
-        )}
-
-        <Text style={styles.sectionLabel}>For you today</Text>
-
-        {res.cards.map((card) => (
-          <Card key={card.id} card={card} onWhy={() => setExplaining(card)} />
-        ))}
-
-        <Text style={styles.metadata}>
-          Updated {res.metadata?.dataFreshness || 'recently'} · data & all cards carry source + confidence
-        </Text>
       </ScrollView>
 
-      <ExplanationSheet card={explaining} onClose={() => setExplaining(null)} />
+      <ExplainSheet card={explaining} lang={lang} onClose={() => setExplaining(null)} onHide={handleHide} />
     </SafeAreaView>
   );
 }
 
-function greet(res: HomepageResponse): string {
-  const h = new Date(res.generated_at).getHours() || new Date().getHours();
-  if (h < 12) return 'morning';
-  if (h < 17) return 'afternoon';
-  return 'evening';
-}
-
-function initials(id: string): string {
-  return (id || 'u').slice(0, 2).toUpperCase();
-}
-
-function Card({ card, onWhy }: { card: HomepageCard; onWhy: () => void }) {
-  const score = typeof card.data.score === 'number' ? card.data.score : undefined;
-  const isOfficial = card.phase === 'official' || card.type === 'severe_warning';
-  return (
-    <TouchableOpacity
-      style={[
-        styles.card,
-        isOfficial && styles.cardOfficial,
-      ]}
-      onPress={onWhy}
-      accessibilityRole="button"
-      accessibilityLabel={`${card.title}. ${card.summary}`}
-    >
-      <View style={styles.cardRow}>
-        <View style={styles.cardMain}>
-          <View style={styles.cardTitleRow}>
-            <Text style={[styles.cardTitle, isOfficial && styles.cardTitleOfficial]}>{card.title}</Text>
-            {card.phase && <PhaseBadge phase={card.phase} />}
-          </View>
-          <Text style={styles.cardSummary}>{card.summary}</Text>
-        </View>
-        {score !== undefined && <ScoreRing score={score} />}
-      </View>
-      <Text style={styles.cardWhy}>Why? {card.explanation.why_shown}</Text>
-    </TouchableOpacity>
-  );
-}
-
-function PhaseBadge({ phase }: { phase: string }) {
-  return (
-    <View style={[styles.phaseBadge, { backgroundColor: `${phaseColor(phase)}22` }]}>
-      <Text style={[styles.phaseText, { color: phaseColor(phase) }]}>{phase.toUpperCase()}</Text>
-    </View>
-  );
-}
-
-function ScoreRing({ score }: { score: number }) {
-  const color = scoreColor(score);
-  return (
-    <View style={styles.ring}>
-      <Text style={[styles.ringScore, { color }]}>{score}</Text>
-      <Text style={styles.ringLabel}>{labelFor(score)}</Text>
-    </View>
-  );
-}
-
-function labelFor(score: number): string {
-  if (score >= 80) return 'Excellent';
-  if (score >= 60) return 'Good';
-  if (score >= 40) return 'Fair';
-  if (score >= 20) return 'Poor';
-  return 'Avoid';
-}
-
-function ExplanationSheet({ card, onClose }: { card: HomepageCard | null; onClose: () => void }) {
-  return (
-    <Modal visible={card !== null} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>{card?.title}</Text>
-          <Text style={styles.modalSummary}>{card?.summary}</Text>
-          <View style={styles.divider} />
-          <Text style={styles.modalLabel}>Why am I seeing this?</Text>
-          <Text style={styles.modalBody}>{card?.explanation.why_shown}</Text>
-          <Text style={styles.modalLabel}>Source</Text>
-          <Text style={styles.modalBody}>
-            {card?.provenance.source} · issued {prettyDate(card?.provenance.issued_at)} · valid until{' '}
-            {prettyDate(card?.provenance.valid_until)}
-          </Text>
-          <Text style={styles.modalLabel}>Confidence</Text>
-          <Text style={styles.modalBody}>{Math.round((card?.explanation.confidence ?? 0) * 100)}%</Text>
-          <TouchableOpacity style={styles.modalClose} onPress={onClose}>
-            <Text style={styles.modalCloseText}>Close</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-function prettyDate(iso?: string): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-}
-
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.surface },
-  container: { padding: 16, paddingBottom: 48 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  loadingText: { marginTop: 12, color: colors.textMuted },
-  errorTitle: { fontSize: 20, fontWeight: '700', color: colors.text, textAlign: 'center' },
-  errorBody: { marginTop: 8, color: colors.textMuted, textAlign: 'center', lineHeight: 20 },
-  retry: { marginTop: 16, backgroundColor: colors.primary, paddingHorizontal: 28, paddingVertical: 12, borderRadius: 12 },
-  retryText: { color: '#fff', fontWeight: '700' },
-  resetLink: { marginTop: 16, color: colors.primary, textDecorationLine: 'underline' },
+  safe: { flex: 1, backgroundColor: colors.bg },
+  container: { paddingHorizontal: 16, paddingBottom: 32, paddingTop: 8 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  greeting: { fontSize: 24, fontWeight: '700', color: colors.text },
-  location: { fontSize: 14, color: colors.textMuted, marginTop: 2 },
-  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primaryLight, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  personaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
-  personaChip: { backgroundColor: colors.primaryLight, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 5 },
-  personaChipText: { color: '#0A2540', fontSize: 12, fontWeight: '600' },
-  banner: { borderRadius: 12, padding: 12, marginBottom: 12 },
-  bannerOffline: { backgroundColor: '#FFF8E1' },
-  bannerInfo: { backgroundColor: '#E3F2FD' },
-  bannerText: { color: colors.text, fontSize: 13 },
-  sectionLabel: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: 10 },
-  card: {
-    backgroundColor: colors.card,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    padding: 16,
-    marginBottom: 12,
-  },
-  cardOfficial: { borderColor: colors.warningRed, borderWidth: 2 },
-  cardRow: { flexDirection: 'row', alignItems: 'center' },
-  cardMain: { flex: 1, paddingRight: 12 },
-  cardTitleRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
-  cardTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
-  cardTitleOfficial: { color: colors.warningRed },
-  cardSummary: { fontSize: 14, color: colors.textMuted, marginTop: 6, lineHeight: 20 },
-  cardWhy: { fontSize: 12, color: colors.textMuted, marginTop: 10, fontStyle: 'italic' },
-  phaseBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
-  phaseText: { fontSize: 10, fontWeight: '800' },
-  ring: { width: 68, height: 68, borderRadius: 34, borderWidth: 4, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center' },
-  ringScore: { fontSize: 24, fontWeight: '800' },
-  ringLabel: { fontSize: 9, color: colors.textMuted, marginTop: 1 },
-  metadata: { marginTop: 8, fontSize: 12, color: colors.textMuted, textAlign: 'center' },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  modalCard: {
-    backgroundColor: colors.card,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    paddingBottom: 40,
-  },
-  modalTitle: { fontSize: 20, fontWeight: '700', color: colors.text },
-  modalSummary: { fontSize: 14, color: colors.textMuted, marginTop: 6 },
-  divider: { height: 1, backgroundColor: '#E5E7EB', marginVertical: 14 },
-  modalLabel: { fontSize: 13, fontWeight: '700', color: colors.primary, marginTop: 10 },
-  modalBody: { fontSize: 14, color: colors.text, marginTop: 4, lineHeight: 20 },
-  modalClose: { marginTop: 20, backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-  modalCloseText: { color: '#fff', fontWeight: '700' },
+  greeting: { fontSize: 22, fontWeight: '800', color: colors.text, letterSpacing: -0.5 },
+  updatedRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  dot: { width: 6, height: 6, borderRadius: 3 },
+  updated: { fontSize: 11.5, color: colors.textMuted },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  iconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(15,23,42,0.06)' },
+  badge: { position: 'absolute', right: -2, top: -2, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 2, borderColor: colors.bg },
+  badgeText: { color: '#fff', fontSize: 10, fontWeight: '800' },
+  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: '#fff', fontSize: 14, fontWeight: '800' },
+  offlineBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FFFBEB', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 12, borderWidth: 1, borderColor: '#FDE68A' },
+  offlineText: { flex: 1, fontSize: 12, fontWeight: '600', color: '#92400E' },
+  retryBtn: { backgroundColor: '#F59E0B', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  retryText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  pushCard: { backgroundColor: '#fff', borderRadius: 18, padding: 14, marginBottom: 12, borderWidth: 1.5, borderColor: '#EF4444', shadowColor: '#EF4444', shadowOpacity: 0.15, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
+  pushRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  pushApp: { fontSize: 10.5, fontWeight: '800', color: colors.primary, letterSpacing: 0.3 },
+  pushTime: { fontSize: 10, color: colors.textSoft },
+  pushTitle: { fontSize: 14, fontWeight: '800', color: colors.text, lineHeight: 19 },
+  pushBody: { fontSize: 12, color: '#475569', marginTop: 4, lineHeight: 17 },
+  pushActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
+  pushActionPill: { backgroundColor: '#FEE2E2', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  pushActionText: { color: '#B91C1C', fontSize: 11, fontWeight: '700' },
+  pushOfficial: { marginTop: 10, fontSize: 10, fontWeight: '600', color: '#047857' },
+  chipBar: { paddingRight: 16, gap: 8, paddingBottom: 4 },
+  personaChip: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1 },
+  chipActiveDark: { backgroundColor: colors.text, borderColor: colors.text },
+  chipInactive: { backgroundColor: '#fff', borderColor: '#E2E8F0' },
+  chipTextWhite: { color: '#fff', fontSize: 11.5, fontWeight: '700' },
+  chipTextDark: { color: colors.textMuted, fontSize: 11.5, fontWeight: '700' },
+  personaChipTextM: { fontSize: 11.5, fontWeight: '700' },
+  cards: { marginTop: 6, gap: 14 },
+  footer: { alignItems: 'center', paddingTop: 16 },
+  footerTrust: { fontSize: 10.5, textAlign: 'center', color: colors.textSoft, lineHeight: 15 },
+  report: { marginTop: 8, fontSize: 11, fontWeight: '700', color: colors.textMuted },
+  features: { flexDirection: 'row', gap: 10, marginTop: 18 },
+  featBtn: { flex: 1, backgroundColor: '#fff', borderRadius: 16, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(15,23,42,0.06)', gap: 4 },
+  featIcon: { fontSize: 20 },
+  featText: { fontSize: 11.5, fontWeight: '700', color: colors.text, textAlign: 'center' },
 });

@@ -79,7 +79,7 @@ def running_score(w: WeatherData, profile: UserProfile | None = None) -> ImpactS
         factor("AQI", _aqi_from_params(p), aqi_weight, f"AQI {p.aqi} ({_aqi_level(p.aqi or 0)})"),
         factor("humidity", max(0, 100 - abs(p.humidity_pct - 55)), 0.15, f"{p.humidity_pct}% (ideal ≈55%)"),
         factor("wind", g(p.wind_speed_kmh), 0.15, f"{p.wind_speed_kmh} km/h"),
-        factor("UV", max(0, 100 - 14 * (p.uv_index - 3)), 0.10, f"UV {p.uv_index}"),
+        factor("UV", _cap(100 - 14 * (p.uv_index - 3)), 0.10, f"UV {p.uv_index}"),
         factor("rain", _rain_factor(p.rain_probability_pct), 0.10,
                f"rain {p.rain_probability_pct}%"),
     ]
@@ -157,9 +157,9 @@ def beach_score(w: WeatherData) -> ImpactScore:
         wave_score = max(0.0, 40 - 60 * (wave - 1.5))
     factors = [
         factor("waves", wave_score, 0.55, f"{wave} m (INCOIS safety threshold ≈1.5 m)"),
-        factor("UV", max(0, 100 - 14 * (p.uv_index - 2)), 0.15, f"UV {p.uv_index}"),
-        factor("wind", _wind(5, 30)(p.wind_speed_kmh), 0.15, f"{p.wind_speed_kmh} km/h"),
-        factor("rain", 100 - 12 * (p.rain_probability_pct or 0), 0.15, f"{p.rain_probability_pct or 0}% rain"),
+        factor("UV", _cap(100 - 14 * (p.uv_index - 2)), 0.15, f"UV {p.uv_index}"),
+        factor("wind", _cap(_wind(5, 30)(p.wind_speed_kmh)), 0.15, f"{p.wind_speed_kmh} km/h"),
+        factor("rain", _cap(100 - 12 * (p.rain_probability_pct or 0)), 0.15, f"{p.rain_probability_pct or 0}% rain"),
     ]
     total = sum(f["score"] * f["weight"] for f in factors)
     return ImpactScore(

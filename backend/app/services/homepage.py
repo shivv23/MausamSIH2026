@@ -34,7 +34,8 @@ def _explanation(why: str, w: WeatherData, confidence: float = 0.92) -> CardExpl
 
 def build_homepage(user: UserProfile, w: WeatherData,
                    is_official_warning: bool = False, warning_text: str | None = None,
-                   hour: int | None = None, behavior_bias: Optional[float] = None) -> HomepageResponse:
+                   hour: int | None = None, behavior_bias: Optional[float] = None,
+                   alerts: Optional[list] = None) -> HomepageResponse:
     ranker = Ranker()
     now = datetime.now(timezone.utc)
     hour = hour if hour is not None else now.astimezone().hour
@@ -43,6 +44,27 @@ def build_homepage(user: UserProfile, w: WeatherData,
     # Gather candidate cards per persona interest.
     candidates: list[tuple[float, HomepageCard]] = []
     primary_persona = personas[0]
+
+    # ---- official pinned alerts (from the disaster/simulation service) ----
+    if alerts:
+        for a in alerts:
+            candidates.append((100_100.0 - 1, HomepageCard(
+                id=a.id,
+                type=CardType.SEVERE_WARNING,
+                title=a.headline,
+                summary=f"{a.region} · {a.severity.value.upper()} · " + (a.actionable[0] if a.actionable else "Take precautions"),
+                priority=0,
+                phase=AlertPhase.OFFICIAL,
+                data={"official": True, "severity": a.severity.value, "event_type": a.event_type,
+                      "region": a.region, "actionable": a.actionable},
+                explanation=CardExplanation(
+                    why_shown="Official IMD advisory active in your region — always pinned",
+                    source=w.provenance.source,
+                    confidence=1.0,
+                    valid_until=a.valid_until,
+                ),
+                provenance=w.provenance,
+            )))
 
     # ---- impact-model driven cards ---------------------------------------
     def add(type_: CardType, title: str, summary: str, data: dict, why: str, score=None, pinned=False, phase=None):
@@ -81,7 +103,7 @@ def build_homepage(user: UserProfile, w: WeatherData,
         add(card_type, "Best Time to Run" if card_type == CardType.RUNNING_WINDOW else "Best Time to Cycle",
             f"SCORE {s.score}/100 — {s.level}: {s.summary or 'ideal conditions'}",
             {"score": s.score, "level": s.level, "best_window": s.best_window,
-             "factors": [f.dict() for f in s.factors]},
+             "factors": [f.model_dump() for f in s.factors]},
             f"Fitness persona + activity engine: {s.factors[0].detail}", s.score, phase=AlertPhase.DERIVED)
 
     if _wants(personas, CardType.WORK_COMMUTE) or _wants(personas, CardType.SCHOOL_COMMUTE) or _wants(personas, CardType.RAIN_TIMELINE):
@@ -110,9 +132,17 @@ def build_homepage(user: UserProfile, w: WeatherData,
 
     # --- My Day timeline (hero) -------------------------------------------
     my_day = []
-    for a in user.activities[:4]:
-        my_day.append({"activity": a.get("type", "event"), "time": a.get("time", "09:00")})
-    add(CardType.MY_DAY, "My Day", "Your schedule, weather-checked",
+    if user.activities:
+        from app.services.activity import build_my_day
+        from app.models.schemas import Activity
+        acts = [Activity(**a) for a in user.activities]
+        md = build_my_day(user, w, acts)
+        wanted = {a.type for a in acts}
+        my_day = [{"activity": s.activity.value, "time": f"{s.start}–{s.end}", "score": s.score}
+                  for s in md.slots if s.activity in wanted][:3]
+    add(CardType.MY_DAY, "My Day",
+        "\n".join(f"• {i['activity']}: best {i['time']}" for i in my_day) if my_day
+        else "Your schedule, weather-checked",
         {"items": my_day or [{"activity": "No planned activities", "time": "-"}]},
         "Autonomous context: your saved activities evaluated against today's weather")
 
@@ -158,26 +188,33 @@ def _dedupe(cards: list[HomepageCard]) -> list[HomepageCard]:
 
 async def build_for_user(user_id: str, city: str | None = None, scenario: str | None = None) -> HomepageResponse:
     """Compose weather + profile and produce the homepage (async)."""
-    from app.providers.mock import WeatherRegistry
+    from app.providers.mock import make_registry
+    from app.services.store import profile_for
     city = city or "pune"
     scenario = scenario or scenario_for(city)
     loc = pick_anchor(city)
-    reg = WeatherRegistry(scenario=scenario)
+    reg = make_registry(scenario, city)
     w = await reg.get(loc, "current")
-    user = UserProfile(
-        user_id=user_id,
-        personas=_personas_for(user_id),
-        saved_locations=[loc],
-    )
-    return build_homepage(user, w)
+    user = profile_for(user_id, city)
+    if user.saved_locations != [loc]:
+        user = user.model_copy(deep=True)
+        user.saved_locations = [loc]
+    # surface persisted activities into the profile for the My Day card
+    from app.services.store import list_activities
+    user = user.model_copy(deep=True)
+    user.activities = [a.model_dump() for a in list_activities(user_id)]
+    # inject active alerts that cover this user's city
+    alerts = _alerts_for(city)
+    return build_homepage(user, w, alerts=alerts)
 
 
-def _personas_for(user_id: str) -> list[str]:
-    # TODO: replace with DB-backed profile lookup in SIH build.
-    # Default demo mapping keeps the endpoint usable without a DB.
-    mapping = {
-        "ananya": ["fitness", "health", "commuter"],
-        "ramesh": ["agriculture", "commuter"],
-        "asha": ["parent", "commuter"],
-    }
-    return mapping.get(user_id, ["commuter"])
+def _alerts_for(city: str) -> list:
+    """Active official alerts whose region matches this city (region-polygon hit)."""
+    from app.services.warnings import list_alerts_with_polygon, point_in_polygon
+    by_id = {a.id: a for a in list_alerts_with_polygon()}
+    out = []
+    loc = pick_anchor(city)
+    for a in by_id.values():
+        if loc and point_in_polygon(loc, a.polygon):
+            out.append(a)
+    return out
