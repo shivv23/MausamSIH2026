@@ -1,0 +1,52 @@
+name: mausam
+
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: mausam
+      POSTGRES_PASSWORD: mausam
+      POSTGRES_DB: mausam
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: mausam
+      RABBITMQ_DEFAULT_PASS: mausam
+
+  gateway:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./infra/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    environment:
+      DATABASE_URL: postgresql+asyncpg://mausam:mausam@postgres:5432/mausam
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: amqp://mausam:mausam@rabbitmq:5672//
+
+volumes:
+  pgdata:

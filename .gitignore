@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+
+# Node / React Native (Expo)
+node_modules/
+mobile/.expo/
+mobile/dist/
+mobile/web-build/
+mobile/.expo-shared/
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Native build artefacts
+*.apk
+*.aab
+*.ipa
+mobile/android/
+mobile/ios/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Local foreign keys to the machine
+*.key
+*.pem
+
+# Office / editor lock files
+~$*
