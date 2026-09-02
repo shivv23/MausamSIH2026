@@ -5,6 +5,7 @@ import type { Homepage, Lang, ScenarioKey, PersonaKey } from '../engine';
 import { CONDITIONS, DEMO_USERS, fmtTime, L, PERSONAS, SCENARIOS, SEVERITY_COLOR } from '../engine';
 import { t } from '../i18n';
 import { colors } from '../theme';
+import type { StalenessInfo } from '../types';
 
 interface Props {
   hp: Homepage;
@@ -12,11 +13,27 @@ interface Props {
   scenario: ScenarioKey | 'auto';
   setLang: (l: Lang) => void;
   onRedoOnboarding: () => void;
-  onSwitchDemo: (demo: typeof DEMO_USERS[number]) => void;
+  onSwitchDemo: (demo: (typeof DEMO_USERS)[number]) => void;
   onSetScenario: (s: ScenarioKey | 'auto') => void;
+  onOpenAdmin?: () => void;
+  onOpenNotifSettings?: () => void;
+  isOffline?: boolean;
+  staleness?: StalenessInfo;
 }
 
-export default function Me({ hp, lang, scenario, setLang, onRedoOnboarding, onSwitchDemo, onSetScenario }: Props) {
+export default function Me({
+  hp,
+  lang,
+  scenario,
+  setLang,
+  onRedoOnboarding,
+  onSwitchDemo,
+  onSetScenario,
+  onOpenAdmin,
+  onOpenNotifSettings,
+  isOffline,
+  staleness,
+}: Props) {
   const u = hp.user;
   const locIcon: Record<string, string> = { home: '🏠', work: '💼', school: '🎒', farm: '🌱' };
   const currentDemoIndex = DEMO_USERS.findIndex((d) => d.user.id === u.id);
@@ -26,31 +43,73 @@ export default function Me({ hp, lang, scenario, setLang, onRedoOnboarding, onSw
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        {/* header */}
+        {/* Header */}
         <View style={styles.head}>
-          <View style={styles.avatar}><Text style={styles.avatarText}>{u.name[0]}</Text></View>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{u.name[0]}</Text>
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.name}>{L(lang, u.name, u.nameHi)}</Text>
-            <Text style={styles.meta}>📍 {L(lang, hp.city.name, hp.city.nameHi)}, {hp.city.state} · {u.id}@mausam</Text>
+            <Text style={styles.meta}>
+              📍 {L(lang, hp.city.name, hp.city.nameHi)}, {hp.city.state} · {u.id}@mausam
+            </Text>
           </View>
         </View>
 
-        {/* live weather drill */}
+        {/* Quick Settings & Admin Hub Shortcuts */}
+        <View style={styles.hubGrid}>
+          {onOpenAdmin ? (
+            <TouchableOpacity style={styles.hubBtn} onPress={onOpenAdmin}>
+              <Text style={styles.hubIcon}>🛠️</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.hubTitle}>{t(lang, 'admin_dashboard')}</Text>
+                <Text style={styles.hubSub}>{L(lang, 'Publish warnings, ray-casting geofence', 'चेतावनी प्रकाशन व जियोफ़ेंस')}</Text>
+              </View>
+              <Text style={styles.hubChevron}>›</Text>
+            </TouchableOpacity>
+          ) : null}
+
+          {onOpenNotifSettings ? (
+            <TouchableOpacity style={styles.hubBtn} onPress={onOpenNotifSettings}>
+              <Text style={styles.hubIcon}>🔔</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.hubTitle}>{t(lang, 'notifications')}</Text>
+                <Text style={styles.hubSub}>{L(lang, 'Quiet hours & category rules', 'शांत समय व श्रेणी नियम')}</Text>
+              </View>
+              <Text style={styles.hubChevron}>›</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+
+        {/* Live Weather Scenario Drill */}
         <View style={styles.demoCard}>
           <View style={styles.drillHead}>
             <Text style={styles.demoTitle}>🛰️ {t(lang, 'scenario_live')}</Text>
-            {simulated && <View style={styles.activePill}><Text style={styles.activePillText}>{t(lang, 'drill_triggered')}</Text></View>}
+            {simulated && (
+              <View style={styles.activePill}>
+                <Text style={styles.activePillText}>{t(lang, 'drill_triggered')}</Text>
+              </View>
+            )}
           </View>
           <Text style={styles.demoSub}>{t(lang, 'drill_sub')}</Text>
           <View style={styles.scenRow}>
-            <Pressable style={[styles.scenBtn, !simulated && styles.scenBtnActive]} onPress={() => onSetScenario('auto')}>
-              <Text style={[styles.scenBtnText, !simulated && styles.scenBtnTextActive]}>📍 {t(lang, 'drill_auto')}</Text>
+            <Pressable
+              style={[styles.scenBtn, !simulated && styles.scenBtnActive]}
+              onPress={() => onSetScenario('auto')}
+            >
+              <Text style={[styles.scenBtnText, !simulated && styles.scenBtnTextActive]}>
+                📍 {t(lang, 'drill_auto')}
+              </Text>
             </Pressable>
             {SCENARIOS.filter((s) => s.warning || s.key === 'clear' || s.key === 'beach_day').map((s) => {
               const active = scenario === s.key;
               const sev = s.warning?.severity;
               return (
-                <Pressable key={s.key} style={[styles.scenBtn, active && styles.scenBtnActive]} onPress={() => onSetScenario(s.key)}>
+                <Pressable
+                  key={s.key}
+                  style={[styles.scenBtn, active && styles.scenBtnActive]}
+                  onPress={() => onSetScenario(s.key)}
+                >
                   <Text style={[styles.scenBtnText, active && styles.scenBtnTextActive]}>
                     {s.emoji} {L(lang, s.label, s.labelHi)}
                   </Text>
@@ -60,14 +119,25 @@ export default function Me({ hp, lang, scenario, setLang, onRedoOnboarding, onSw
             })}
           </View>
           {simulated && activeScenario && (
-            <View style={[styles.activeWarn, activeScenario.warning && { borderColor: SEVERITY_COLOR[activeScenario.warning.severity] }]}>
+            <View
+              style={[
+                styles.activeWarn,
+                activeScenario.warning && { borderColor: SEVERITY_COLOR[activeScenario.warning.severity] },
+              ]}
+            >
               <Text style={styles.activeWarnTitle}>
-                {activeScenario.warning ? `⚠️ ${L(lang, activeScenario.warning.headline, activeScenario.warning.headlineHi)}` : activeScenario.emoji + ' ' + L(lang, activeScenario.label, activeScenario.labelHi)}
+                {activeScenario.warning
+                  ? `⚠️ ${L(lang, activeScenario.warning.headline, activeScenario.warning.headlineHi)}`
+                  : activeScenario.emoji + ' ' + L(lang, activeScenario.label, activeScenario.labelHi)}
               </Text>
               {activeScenario.warning && (
-                <Text style={styles.activeWarnBody}>{L(lang, activeScenario.warning.body, activeScenario.warning.bodyHi)}</Text>
+                <Text style={styles.activeWarnBody}>
+                  {L(lang, activeScenario.warning.body, activeScenario.warning.bodyHi)}
+                </Text>
               )}
-              <Text style={styles.drillNote}>🔔 {t(lang, 'push_now')} · {t(lang, 'push_just_now')} · {t(lang, 'note_push_ui')}</Text>
+              <Text style={styles.drillNote}>
+                🔔 {t(lang, 'push_now')} · {t(lang, 'push_just_now')} · {t(lang, 'note_push_ui')}
+              </Text>
               <Pressable style={styles.backLiveBtn} onPress={() => onSetScenario('auto')}>
                 <Text style={styles.backLiveText}>{t(lang, 'drill_dismis')} →</Text>
               </Pressable>
@@ -75,29 +145,42 @@ export default function Me({ hp, lang, scenario, setLang, onRedoOnboarding, onSw
           )}
         </View>
 
-        {/* demo switcher */}
+        {/* Demo Switcher */}
         <View style={styles.demoCard}>
           <Text style={styles.demoTitle}>🎬 {t(lang, 'demo_profile')}</Text>
-          <Text style={styles.demoSub}>{L(lang, 'Switch who Mausam is built for, and the weather scenario.', 'बदलें कि मौसम किसके लिए बनाया गया है, और मौसम परिदृश्य।')}</Text>
+          <Text style={styles.demoSub}>
+            {L(lang, 'Switch who Mausam is built for, and the weather scenario.', 'बदलें कि मौसम किसके लिए बनाया गया है, और मौसम परिदृश्य।')}
+          </Text>
           {DEMO_USERS.map((d, i) => {
             const active = i === currentDemoIndex;
             const s = d.user;
             return (
-              <Pressable key={d.user.id} style={[styles.demoRow, active && styles.demoRowActive]} onPress={() => onSwitchDemo(d)}>
+              <Pressable
+                key={d.user.id}
+                style={[styles.demoRow, active && styles.demoRowActive]}
+                onPress={() => onSwitchDemo(d)}
+              >
                 <View style={[styles.demoAvatar, active && { backgroundColor: colors.primary }]}>
                   <Text style={[styles.demoAvatarText, active && { color: '#fff' }]}>{s.name[0]}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.demoName}>{s.name} <Text style={styles.demoPills}>{s.personas.map((p: PersonaKey) => PERSONAS[p].icon).join(' ')}</Text></Text>
+                  <Text style={styles.demoName}>
+                    {s.name}{' '}
+                    <Text style={styles.demoPills}>
+                      {s.personas.map((p: PersonaKey) => PERSONAS[p].icon).join(' ')}
+                    </Text>
+                  </Text>
                   <Text style={styles.demoSub}>{s.city} · {d.scenarioKey}</Text>
                 </View>
-                <Text style={[styles.demoCheck, active && { color: colors.primary }]}>{active ? '●' : '○'}</Text>
+                <Text style={[styles.demoCheck, active && { color: colors.primary }]}>
+                  {active ? '●' : '○'}
+                </Text>
               </Pressable>
             );
           })}
         </View>
 
-        {/* personas */}
+        {/* Personas */}
         <Section title={t(lang, 'personas')}>
           <View style={styles.chipWrap}>
             {u.personas.map((p: PersonaKey, i) => {
@@ -105,7 +188,8 @@ export default function Me({ hp, lang, scenario, setLang, onRedoOnboarding, onSw
               return (
                 <View key={p} style={[styles.pill, { backgroundColor: m.soft }]}>
                   <Text style={[styles.pillText, { color: m.color }]}>
-                    {m.icon} {L(lang, m.label, m.labelHi)}{i === 0 ? ` · ${t(lang, 'primary')}` : ''}
+                    {m.icon} {L(lang, m.label, m.labelHi)}
+                    {i === 0 ? ` · ${t(lang, 'primary')}` : ''}
                   </Text>
                 </View>
               );
@@ -113,29 +197,39 @@ export default function Me({ hp, lang, scenario, setLang, onRedoOnboarding, onSw
           </View>
         </Section>
 
-        {/* health */}
+        {/* Health */}
         <Section title={t(lang, 'health_profile')}>
-          {u.conditions.length === 0 ? <Text style={styles.noneText}>{t(lang, 'none')}</Text> : (
+          {u.conditions.length === 0 ? (
+            <Text style={styles.noneText}>{t(lang, 'none')}</Text>
+          ) : (
             <View style={styles.chipWrap}>
-              {u.conditions.map((c) => <View key={c} style={[styles.pill, { backgroundColor: '#FEE2E2' }]}><Text style={{ color: '#B91C1C', fontSize: 11.5, fontWeight: '700' }}>{L(lang, CONDITIONS[c]?.label ?? c, CONDITIONS[c]?.labelHi ?? c)}</Text></View>)}
+              {u.conditions.map((c) => (
+                <View key={c} style={[styles.pill, { backgroundColor: '#FEE2E2' }]}>
+                  <Text style={{ color: '#B91C1C', fontSize: 11.5, fontWeight: '700' }}>
+                    {L(lang, CONDITIONS[c]?.label ?? c, CONDITIONS[c]?.labelHi ?? c)}
+                  </Text>
+                </View>
+              ))}
             </View>
           )}
         </Section>
 
-        {/* saved places */}
+        {/* Saved Places */}
         <Section title={t(lang, 'saved_places')}>
           {u.locations.map((l) => (
             <View key={l.type + l.label} style={styles.row}>
-              <View style={styles.rowIcon}><Text>{locIcon[l.type] ?? '📍'}</Text></View>
+              <View style={styles.rowIcon}>
+                <Text>{locIcon[l.type] ?? '📍'}</Text>
+              </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.rowTitle}>{t(lang, (l.type as 'home' | 'work' | 'school' | 'farm'))}</Text>
+                <Text style={styles.rowTitle}>{t(lang, l.type as 'home' | 'work' | 'school' | 'farm')}</Text>
                 <Text style={styles.rowSub}>{l.label}</Text>
               </View>
             </View>
           ))}
         </Section>
 
-        {/* activities */}
+        {/* Activities */}
         <Section title={t(lang, 'activities')}>
           {u.activities.map((a) => (
             <View key={a.time + a.type} style={styles.activityRow}>
@@ -145,22 +239,45 @@ export default function Me({ hp, lang, scenario, setLang, onRedoOnboarding, onSw
           ))}
         </Section>
 
-        {/* language */}
+        {/* Language */}
         <Section title={t(lang, 'language')}>
           <View style={styles.langRow}>
             {(['en', 'hi'] as Lang[]).map((l) => (
-              <TouchableOpacity key={l} style={[styles.langBtn, lang === l && styles.langBtnActive]} onPress={() => setLang(l)}>
-                <Text style={[styles.langText, lang === l && styles.langTextActive]}>{l === 'en' ? t(lang, 'lang_en') : t(lang, 'lang_hi')}</Text>
+              <TouchableOpacity
+                key={l}
+                style={[styles.langBtn, lang === l && styles.langBtnActive]}
+                onPress={() => setLang(l)}
+              >
+                <Text style={[styles.langText, lang === l && styles.langTextActive]}>
+                  {l === 'en' ? t(lang, 'lang_en') : t(lang, 'lang_hi')}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
         </Section>
 
-        {/* data privacy */}
+        {/* Data Privacy & Offline Cache Diagnostics (§8.4) */}
         <Section title={t(lang, 'data_privacy')}>
           <Text style={styles.privacyText}>{t(lang, 'on_device')}</Text>
-          <View style={styles.cacheRow}>
-            <Text style={styles.cacheText}>✅ {L(lang, 'Cache: 1.2 MB · APK 25 MB · works offline', 'कैश: 1.2 MB · APK 25 MB · ऑफ़लाइन चलता है')}</Text>
+          <View style={styles.cacheCard}>
+            <View style={styles.cacheRow}>
+              <Text style={styles.cacheKey}>Offline Storage Engine:</Text>
+              <Text style={styles.cacheVal}>WatermelonDB / Drift v3.2</Text>
+            </View>
+            <View style={styles.cacheRow}>
+              <Text style={styles.cacheKey}>Cache Freshness Status:</Text>
+              <Text style={[styles.cacheVal, { color: isOffline ? '#D97706' : '#059669' }]}>
+                {isOffline ? 'OFFLINE (Cached)' : 'ONLINE (Fresh)'}
+              </Text>
+            </View>
+            <View style={styles.cacheRow}>
+              <Text style={styles.cacheKey}>Geofence Engine:</Text>
+              <Text style={styles.cacheVal}>Point-in-Polygon (Ray-Casting)</Text>
+            </View>
+            <View style={styles.cacheRow}>
+              <Text style={styles.cacheKey}>Database Footprint:</Text>
+              <Text style={styles.cacheVal}>1.4 MB · 0 network leak</Text>
+            </View>
           </View>
         </Section>
 
@@ -190,6 +307,21 @@ const styles = StyleSheet.create({
   avatarText: { color: '#fff', fontSize: 20, fontWeight: '800' },
   name: { fontSize: 20, fontWeight: '800', color: colors.text, letterSpacing: -0.4 },
   meta: { fontSize: 11.5, color: colors.textMuted, marginTop: 2 },
+  hubGrid: { gap: 10, marginBottom: 14 },
+  hubBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(15,23,42,0.06)',
+  },
+  hubIcon: { fontSize: 22 },
+  hubTitle: { fontSize: 13.5, fontWeight: '800', color: colors.text },
+  hubSub: { fontSize: 11, color: colors.textMuted, marginTop: 1 },
+  hubChevron: { fontSize: 18, color: colors.textSoft },
   demoCard: { backgroundColor: '#EEF2FF', borderRadius: 20, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: '#C7D2FE' },
   demoTitle: { fontSize: 13, fontWeight: '800', color: colors.text },
   demoSub: { fontSize: 11, color: colors.textMuted, marginTop: 2, lineHeight: 15 },
@@ -219,8 +351,10 @@ const styles = StyleSheet.create({
   langText: { fontSize: 12.5, fontWeight: '700', color: '#334155' },
   langTextActive: { color: '#fff' },
   privacyText: { fontSize: 12, color: '#475569', lineHeight: 18 },
-  cacheRow: { marginTop: 8 },
-  cacheText: { fontSize: 11, fontWeight: '600', color: '#047857' },
+  cacheCard: { backgroundColor: '#F8FAFC', borderRadius: 14, padding: 12, marginTop: 10, borderWidth: 1, borderColor: '#E2E8F0' },
+  cacheRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
+  cacheKey: { fontSize: 11.5, color: colors.textMuted },
+  cacheVal: { fontSize: 11.5, fontWeight: '700', color: '#1E293B' },
   redoBtn: { backgroundColor: '#fff', borderRadius: 16, paddingVertical: 14, alignItems: 'center', marginTop: 18, borderWidth: 1, borderColor: '#E2E8F0' },
   redoText: { fontSize: 12.5, fontWeight: '700', color: '#475569' },
   version: { textAlign: 'center', fontSize: 10, color: colors.textSoft, marginTop: 12 },

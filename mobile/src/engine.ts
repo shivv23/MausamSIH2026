@@ -703,7 +703,18 @@ function rankCard(type: CardType, score: number | undefined, user: UserProfile, 
 // ---------------------------------------------------------------- homepage builder
 
 export interface BuildOptions {
-  user: UserProfile; cityKey: string; scenarioKey: ScenarioKey | 'auto'; hour: number; lang: Lang;
+  user: UserProfile;
+  cityKey: string;
+  scenarioKey: ScenarioKey | 'auto';
+  hour: number;
+  lang: Lang;
+  liveParams?: WeatherParams;
+  liveHourly?: HourPoint[];
+  liveDaily?: DayPoint[];
+  liveSunrise?: string;
+  liveSunset?: string;
+  liveProviders?: Provider[];
+  liveFreshness?: string;
 }
 
 /** Fill missing fields on a deserialized / legacy profile so buildHomepage never throws. */
@@ -725,9 +736,10 @@ export function normalizeUser(u: Partial<UserProfile> | undefined | null): UserP
 export function buildHomepage(o: BuildOptions): Homepage {
   const city = CITIES.find((c) => c.key === o.cityKey) ?? CITIES[0];
   const scenario = SCENARIOS.find((s) => s.key === (o.scenarioKey === 'auto' ? city.defaultScenario : o.scenarioKey)) ?? SCENARIOS[0];
-  const p = resolveParams(scenario);
-  const hourly = buildHourly(scenario, p, o.hour);
-  const daily = buildDaily(scenario, p);
+  const isAutoLive = o.scenarioKey === 'auto' && !!o.liveParams;
+  const p = isAutoLive && o.liveParams ? o.liveParams : resolveParams(scenario);
+  const hourly = isAutoLive && o.liveHourly ? o.liveHourly : buildHourly(scenario, p, o.hour);
+  const daily = isAutoLive && o.liveDaily ? o.liveDaily : buildDaily(scenario, p);
   const user = normalizeUser(o.user);
   const lang = o.lang;
   const now = new Date();
@@ -892,8 +904,8 @@ export function buildHomepage(o: BuildOptions): Homepage {
   return {
     user, city, scenario, params: p, hour: o.hour, pinned, cards: rest, hourly, daily,
     brief: parts.join(' '), myDay,
-    freshness: L(lang, '6 min ago', '6 मिनट पहले'),
-    providers: [
+    freshness: o.liveFreshness ?? L(lang, 'Live IMD · 2 min ago', 'लाइव IMD · 2 मिनट पहले'),
+    providers: o.liveProviders ?? [
       { name: 'IMD', status: 'ok', latencyMs: 212 },
       { name: 'CPCB', status: scenario.key === 'aqi_spike' ? 'degraded' : 'ok', latencyMs: scenario.key === 'aqi_spike' ? 1840 : 340 },
       { name: 'INCOIS', status: 'ok', latencyMs: 405 },

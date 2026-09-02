@@ -27,6 +27,7 @@ export type CardType =
   | 'sunrise_sunset';
 
 export type AlertPhase = 'official' | 'derived' | 'informational';
+export type Severity = 'green' | 'yellow' | 'orange' | 'red';
 
 export interface Provenance {
   source: string;
@@ -160,3 +161,95 @@ export const ACTIVITY_TYPES: ActivityTypeOption[] = [
   { key: 'farm_irrigation', label: 'Irrigation', icon: '💧' },
   { key: 'event', label: 'Outdoor Event', icon: '🎉' },
 ];
+
+// Geospatial & Geofencing Types (§5.5, §8.2)
+export interface GeoPoint {
+  lat: number;
+  lon: number;
+  name?: string;
+}
+
+export interface GeoPolygon {
+  coordinates: number[][]; // [ [lon, lat], ... ]
+}
+
+export interface DisasterAlertWithPolygon {
+  id: string;
+  severity: 'green' | 'yellow' | 'orange' | 'red';
+  eventType: string;
+  source: string;
+  headline: string;
+  headlineHi: string;
+  body: string;
+  bodyHi: string;
+  region: string;
+  center: GeoPoint;
+  radiusKm: number;
+  polygon: GeoPolygon;
+  issuedAt: string;
+  validUntil: string;
+  actions: string[];
+  actionsHi: string[];
+  affectedUsers?: Array<{
+    userId: string;
+    city: string;
+    inPolygon: boolean;
+    headline: string;
+    body: string;
+  }>;
+}
+
+export type MapLayerType = 'radar' | 'warnings' | 'aqi' | 'satellite' | 'wind';
+
+// Notification & Alert Orchestrator Settings (§5.5)
+export interface NotificationCategorySettings {
+  severeWarnings: boolean; // IMD Red/Orange alerts (always recommended on)
+  aqiHealth: boolean;     // CPCB AQI spikes
+  rainCommute: boolean;   // Rain timeline & commute nowcast
+  farmingFrost: boolean;  // Agromet frost/irrigation
+  marineTides: boolean;   // INCOIS surf/tides
+  myDayReminders: boolean;// Morning & departure alerts
+}
+
+export interface NotificationSettings {
+  enabled: boolean;
+  quietHoursEnabled: boolean;
+  quietHoursStart: string; // "22:00"
+  quietHoursEnd: string;   // "06:00"
+  redAlertBypassQuietHours: boolean; // Always true for disaster safety
+  categories: NotificationCategorySettings;
+  aqiThreshold: number;   // e.g. 150 (Unhealthy)
+  rainProbabilityThreshold: number; // e.g. 60%
+  soundEnabled: boolean;
+  vibrationEnabled: boolean;
+}
+
+export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
+  enabled: true,
+  quietHoursEnabled: true,
+  quietHoursStart: '22:00',
+  quietHoursEnd: '06:00',
+  redAlertBypassQuietHours: true,
+  categories: {
+    severeWarnings: true,
+    aqiHealth: true,
+    rainCommute: true,
+    farmingFrost: true,
+    marineTides: true,
+    myDayReminders: true,
+  },
+  aqiThreshold: 150,
+  rainProbabilityThreshold: 60,
+  soundEnabled: true,
+  vibrationEnabled: true,
+};
+
+// Offline Database & Staleness (§8.4)
+export interface StalenessInfo {
+  isStale: boolean;
+  isCriticallyStale: boolean;
+  ageMinutes: number;
+  lastUpdatedLabel: string;
+  lastUpdatedLabelHi: string;
+  offlineSource: 'network' | 'watermelondb_cache' | 'mock_scenario';
+}

@@ -2,55 +2,114 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Card, Homepage, Lang, PersonaKey } from '../engine';
-import { L, PERSONAS } from '../engine';
+import { L, PERSONAS, SEVERITY_COLOR } from '../engine';
 import { t } from '../i18n';
 import { colors } from '../theme';
 import { SectionHeader } from '../components/ui';
 import { HeroCard, WarningCard, ImpactCard, MyDayCard, BriefCard, HourlyStrip, DailyStrip } from '../components/cards';
 import { ExplainSheet } from '../components/ExplainSheet';
+import type { DisasterAlertWithPolygon, StalenessInfo } from '../types';
 
 interface Props {
   hp: Homepage;
   lang: Lang;
   offline: boolean;
+  activeAlert?: DisasterAlertWithPolygon | null;
+  staleness?: StalenessInfo;
   onOpenMyDay: () => void;
   onOpenAlerts: () => void;
   onOpenMe: () => void;
+  onOpenMap: () => void;
+  onOpenAdmin: () => void;
+  onOpenNotifSettings: () => void;
   onOpenAR: () => void;
   onOpenSocial: () => void;
   onRedoOnboarding: () => void;
   onRetry: () => void;
 }
 
-export default function Home({ hp, lang, offline, onOpenMyDay, onOpenAlerts, onOpenMe, onOpenAR, onOpenSocial, onRedoOnboarding, onRetry }: Props) {
+export default function Home({
+  hp,
+  lang,
+  offline,
+  activeAlert,
+  staleness,
+  onOpenMyDay,
+  onOpenAlerts,
+  onOpenMe,
+  onOpenMap,
+  onOpenAdmin,
+  onOpenNotifSettings,
+  onOpenAR,
+  onOpenSocial,
+  onRedoOnboarding,
+  onRetry,
+}: Props) {
   const [filter, setFilter] = useState<PersonaKey | null>(null);
   const [explaining, setExplaining] = useState<Card | null>(null);
   const [hiddenTypes, setHiddenTypes] = useState<Card['type'][]>([]);
 
-  const greetKey = hp.hour < 5 ? 'good_night' : hp.hour < 12 ? 'good_morning' : hp.hour < 17 ? 'good_afternoon' : hp.hour < 22 ? 'good_evening' : 'good_night';
+  const greetKey =
+    hp.hour < 5
+      ? 'good_night'
+      : hp.hour < 12
+      ? 'good_morning'
+      : hp.hour < 17
+      ? 'good_afternoon'
+      : hp.hour < 22
+      ? 'good_evening'
+      : 'good_night';
+
   const visible = filter
     ? hp.cards.filter((c) => (c.persona === filter || c.type === 'severe_warning') && !hiddenTypes.includes(c.type))
     : hp.cards.filter((c) => !hiddenTypes.includes(c.type));
+
   const handleHide = (c: Card) => setHiddenTypes((prev) => (prev.includes(c.type) ? prev : [...prev, c.type]));
-  const alertCount = hp.pinned.length + hp.cards.filter((c) => c.phase === 'official' || (c.score !== undefined && c.score < 40)).length;
+  const alertCount =
+    (activeAlert ? 1 : 0) +
+    hp.pinned.length +
+    hp.cards.filter((c) => c.phase === 'official' || (c.score !== undefined && c.score < 40)).length;
+
+  const freshnessText =
+    staleness
+      ? lang === 'hi'
+        ? staleness.lastUpdatedLabelHi
+        : staleness.lastUpdatedLabel
+      : `${t(lang, 'updated')} ${hp.freshness} · IMD · CPCB`;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        {/* header */}
+        {/* Header */}
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.greeting}>{t(lang, greetKey)}, {L(lang, hp.user.name, hp.user.nameHi)}</Text>
+            <Text style={styles.greeting}>
+              {t(lang, greetKey)}, {L(lang, hp.user.name, hp.user.nameHi)}
+            </Text>
             <View style={styles.updatedRow}>
-              <View style={[styles.dot, { backgroundColor: offline ? '#F59E0B' : '#10B981' }]} />
-              <Text style={styles.updated}>{t(lang, 'updated')} {hp.freshness} · IMD · CPCB</Text>
+              <View
+                style={[
+                  styles.dot,
+                  { backgroundColor: offline ? '#F59E0B' : staleness?.isStale ? '#EAB308' : '#10B981' },
+                ]}
+              />
+              <Text style={styles.updated}>{freshnessText}</Text>
             </View>
           </View>
+
           <View style={styles.headerRight}>
+            <TouchableOpacity style={styles.iconBtn} onPress={onOpenMap}>
+              <Text style={{ fontSize: 18 }}>🗺️</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.iconBtn} onPress={onOpenAdmin}>
+              <Text style={{ fontSize: 18 }}>🛠️</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.iconBtn} onPress={onOpenAlerts}>
               <Text style={{ fontSize: 18 }}>🔔</Text>
               {alertCount > 0 ? (
-                <View style={styles.badge}><Text style={styles.badgeText}>{alertCount}</Text></View>
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{alertCount}</Text>
+                </View>
               ) : null}
             </TouchableOpacity>
             <TouchableOpacity style={styles.avatar} onPress={onOpenMe}>
@@ -59,40 +118,89 @@ export default function Home({ hp, lang, offline, onOpenMyDay, onOpenAlerts, onO
           </View>
         </View>
 
+        {/* Offline / Staleness Banner (§8.4) */}
         {offline ? (
           <View style={styles.offlineBanner}>
-            <Text style={styles.offlineText}>📡 {t(lang, 'offline_banner')} 07:42 · WatermelonDB</Text>
-            <TouchableOpacity style={styles.retryBtn} onPress={onRetry}><Text style={styles.retryText}>{t(lang, 'offline_retry')}</Text></TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.offlineText}>📡 {t(lang, 'stale_badge_offline')}</Text>
+              <Text style={styles.offlineSub}>
+                {L(lang, 'Showing local cached data · Geofence alerts active', 'स्थानीय कैश डेटा प्रदर्शित · जियोफ़ेंस अलर्ट सक्रिय')}
+              </Text>
+            </View>
+            <TouchableOpacity style={styles.retryBtn} onPress={onRetry}>
+              <Text style={styles.retryText}>{t(lang, 'stale_sync_now')}</Text>
+            </TouchableOpacity>
           </View>
         ) : null}
 
-        {/* simulated official push notification */}
-        {hp.scenario.warning ? (
+        {/* Live Admin-Triggered Geofenced Alert Banner (§13.2 Step 5) */}
+        {activeAlert ? (
+          <View
+            style={[
+              styles.pushCard,
+              { borderColor: SEVERITY_COLOR[activeAlert.severity], shadowColor: SEVERITY_COLOR[activeAlert.severity] },
+            ]}
+          >
+            <View style={styles.pushRow}>
+              <Text style={[styles.pushApp, { color: SEVERITY_COLOR[activeAlert.severity] }]}>
+                {activeAlert.source.toUpperCase()} LIVE ALERT · {activeAlert.region.toUpperCase()}
+              </Text>
+              <TouchableOpacity style={styles.viewMapPill} onPress={onOpenMap}>
+                <Text style={styles.viewMapText}>🗺️ View Geofence →</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.pushTitle}>
+              {activeAlert.severity === 'red' ? '🚨' : '⚠️'} {L(lang, activeAlert.headline, activeAlert.headlineHi)}
+            </Text>
+            <Text style={styles.pushBody} numberOfLines={3}>
+              {L(lang, activeAlert.body, activeAlert.bodyHi)}
+            </Text>
+            <View style={styles.pushActions}>
+              {activeAlert.actions.map((a, i) => (
+                <View key={i} style={styles.pushActionPill}>
+                  <Text style={styles.pushActionText}>
+                    ✓ {L(lang, a, activeAlert.actionsHi?.[i] ?? a)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+            <Text style={styles.pushOfficial}>🔒 {t(lang, 'push_official')}</Text>
+          </View>
+        ) : hp.scenario.warning ? (
           <View style={styles.pushCard}>
             <View style={styles.pushRow}>
               <Text style={styles.pushApp}>MAUSAM · {t(lang, 'push_now')} · {hp.scenario.warning.source}</Text>
               <Text style={styles.pushTime}>{t(lang, 'push_just_now')}</Text>
             </View>
             <Text style={styles.pushTitle}>
-              {hp.scenario.warning.severity === 'red' ? '🚨' : '⚠️'} {L(lang, hp.scenario.warning.headline, hp.scenario.warning.headlineHi)}
+              {hp.scenario.warning.severity === 'red' ? '🚨' : '⚠️'}{' '}
+              {L(lang, hp.scenario.warning.headline, hp.scenario.warning.headlineHi)}
             </Text>
-            <Text style={styles.pushBody} numberOfLines={3}>{L(lang, hp.scenario.warning.body, hp.scenario.warning.bodyHi)}</Text>
+            <Text style={styles.pushBody} numberOfLines={3}>
+              {L(lang, hp.scenario.warning.body, hp.scenario.warning.bodyHi)}
+            </Text>
             <View style={styles.pushActions}>
               {hp.scenario.warning.actions.map((a, i) => (
-                <View key={i} style={styles.pushActionPill}><Text style={styles.pushActionText}>✓ {L(lang, a, hp.scenario.warning?.actionsHi?.[i] ?? a)}</Text></View>
+                <View key={i} style={styles.pushActionPill}>
+                  <Text style={styles.pushActionText}>
+                    ✓ {L(lang, a, hp.scenario.warning?.actionsHi?.[i] ?? a)}
+                  </Text>
+                </View>
               ))}
             </View>
             <Text style={styles.pushOfficial}>🔒 {t(lang, 'push_official')}</Text>
           </View>
         ) : null}
 
+        {/* Hero Current Weather Card */}
         <HeroCard hp={hp} lang={lang} />
 
+        {/* Pinned Warnings */}
         {hp.pinned.map((c) => (
           <WarningCard key={c.id} card={c} lang={lang} onExplain={setExplaining} />
         ))}
 
-        {/* persona chips */}
+        {/* Persona Filter Chips */}
         <View style={{ marginTop: 4 }}>
           <SectionHeader title={t(lang, 'for_you')} sub={t(lang, 'ranked_by')} />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipBar}>
@@ -108,11 +216,17 @@ export default function Home({ hp, lang, offline, onOpenMyDay, onOpenAlerts, onO
               return (
                 <TouchableOpacity
                   key={p}
-                  style={[styles.personaChip, active ? { backgroundColor: m.color, borderColor: m.color } : { backgroundColor: '#fff', borderColor: `${m.color}44` }]}
+                  style={[
+                    styles.personaChip,
+                    active
+                      ? { backgroundColor: m.color, borderColor: m.color }
+                      : { backgroundColor: '#fff', borderColor: `${m.color}44` },
+                  ]}
                   onPress={() => setFilter(active ? null : p)}
                 >
                   <Text style={[styles.personaChipTextM, { color: active ? '#fff' : m.color }]}>
-                    {m.icon} {L(lang, m.label, m.labelHi)}{i === 0 ? ' ★' : ''}
+                    {m.icon} {L(lang, m.label, m.labelHi)}
+                    {i === 0 ? ' ★' : ''}
                   </Text>
                 </TouchableOpacity>
               );
@@ -120,7 +234,7 @@ export default function Home({ hp, lang, offline, onOpenMyDay, onOpenAlerts, onO
           </ScrollView>
         </View>
 
-        {/* ranked cards */}
+        {/* Ranked Decision-Support Cards */}
         <View style={styles.cards}>
           {visible.slice(0, 2).map((c, i) => (
             <ImpactCard key={c.id} card={c} lang={lang} onExplain={setExplaining} rank={i} />
@@ -137,7 +251,12 @@ export default function Home({ hp, lang, offline, onOpenMyDay, onOpenAlerts, onO
           <DailyStrip hp={hp} lang={lang} />
         </View>
 
+        {/* Action Shortcuts */}
         <View style={styles.features}>
+          <TouchableOpacity style={styles.featBtn} onPress={onOpenMap}>
+            <Text style={styles.featIcon}>🗺️</Text>
+            <Text style={styles.featText}>{t(lang, 'nav_map')}</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.featBtn} onPress={onOpenAR}>
             <Text style={styles.featIcon}>🔭</Text>
             <Text style={styles.featText}>{t(lang, 'ar_launch')}</Text>
@@ -146,8 +265,13 @@ export default function Home({ hp, lang, offline, onOpenMyDay, onOpenAlerts, onO
             <Text style={styles.featIcon}>💬</Text>
             <Text style={styles.featText}>{t(lang, 'social_launch')}</Text>
           </TouchableOpacity>
+          <TouchableOpacity style={styles.featBtn} onPress={onOpenNotifSettings}>
+            <Text style={styles.featIcon}>⚙️</Text>
+            <Text style={styles.featText}>{t(lang, 'notifications')}</Text>
+          </TouchableOpacity>
         </View>
 
+        {/* Footer */}
         <View style={styles.footer}>
           <Text style={styles.footerTrust}>{t(lang, 'footer_trust')}</Text>
           <Pressable onPress={onRedoOnboarding}>
@@ -167,22 +291,76 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   greeting: { fontSize: 22, fontWeight: '800', color: colors.text, letterSpacing: -0.5 },
   updatedRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
-  dot: { width: 6, height: 6, borderRadius: 3 },
+  dot: { width: 7, height: 7, borderRadius: 3.5 },
   updated: { fontSize: 11.5, color: colors.textMuted },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  iconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(15,23,42,0.06)' },
-  badge: { position: 'absolute', right: -2, top: -2, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 2, borderColor: colors.bg },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  iconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(15,23,42,0.06)',
+  },
+  badge: {
+    position: 'absolute',
+    right: -2,
+    top: -2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: colors.bg,
+  },
   badgeText: { color: '#fff', fontSize: 10, fontWeight: '800' },
-  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: '#fff', fontSize: 14, fontWeight: '800' },
-  offlineBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FFFBEB', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 12, borderWidth: 1, borderColor: '#FDE68A' },
-  offlineText: { flex: 1, fontSize: 12, fontWeight: '600', color: '#92400E' },
-  retryBtn: { backgroundColor: '#F59E0B', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFBEB',
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  offlineText: { fontSize: 12, fontWeight: '700', color: '#92400E' },
+  offlineSub: { fontSize: 10.5, color: '#B45309', marginTop: 1 },
+  retryBtn: { backgroundColor: '#F59E0B', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
   retryText: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  pushCard: { backgroundColor: '#fff', borderRadius: 18, padding: 14, marginBottom: 12, borderWidth: 1.5, borderColor: '#EF4444', shadowColor: '#EF4444', shadowOpacity: 0.15, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
+  pushCard: {
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: '#EF4444',
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
   pushRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  pushApp: { fontSize: 10.5, fontWeight: '800', color: colors.primary, letterSpacing: 0.3 },
+  pushApp: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.3 },
   pushTime: { fontSize: 10, color: colors.textSoft },
+  viewMapPill: {
+    backgroundColor: '#EEF2FF',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  viewMapText: { fontSize: 10, fontWeight: '700', color: colors.primary },
   pushTitle: { fontSize: 14, fontWeight: '800', color: colors.text, lineHeight: 19 },
   pushBody: { fontSize: 12, color: '#475569', marginTop: 4, lineHeight: 17 },
   pushActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
@@ -200,8 +378,17 @@ const styles = StyleSheet.create({
   footer: { alignItems: 'center', paddingTop: 16 },
   footerTrust: { fontSize: 10.5, textAlign: 'center', color: colors.textSoft, lineHeight: 15 },
   report: { marginTop: 8, fontSize: 11, fontWeight: '700', color: colors.textMuted },
-  features: { flexDirection: 'row', gap: 10, marginTop: 18 },
-  featBtn: { flex: 1, backgroundColor: '#fff', borderRadius: 16, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(15,23,42,0.06)', gap: 4 },
-  featIcon: { fontSize: 20 },
-  featText: { fontSize: 11.5, fontWeight: '700', color: colors.text, textAlign: 'center' },
+  features: { flexDirection: 'row', gap: 8, marginTop: 18 },
+  featBtn: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(15,23,42,0.06)',
+    gap: 3,
+  },
+  featIcon: { fontSize: 18 },
+  featText: { fontSize: 10.5, fontWeight: '700', color: colors.text, textAlign: 'center' },
 });
