@@ -53,6 +53,7 @@ export interface ScenarioDef {
 
 export interface City {
   key: string; name: string; nameHi: string; state: string; coastal: boolean; farm: boolean;
+  lat: number; lon: number;
   defaultScenario: ScenarioKey; sunrise: string; sunset: string;
 }
 
@@ -98,6 +99,15 @@ export interface MyDayItem {
   note: string; suggestion?: string; point: HourPoint;
 }
 
+/** Real observed weather injected from a live source (e.g. Open-Meteo). */
+export interface LiveWeather {
+  params: WeatherParams;
+  hourly: HourPoint[];
+  daily: DayPoint[];
+  fetchedAt: string;
+  stale: boolean;
+}
+
 // ---------------------------------------------------------------- catalogs
 
 export const PERSONAS: Record<PersonaKey, { label: string; labelHi: string; icon: string; color: string; soft: string; desc: string; descHi: string }> = {
@@ -123,14 +133,14 @@ export const PERSONA_INTERESTS: Record<PersonaKey, CardType[]> = {
 };
 
 export const CITIES: City[] = [
-  { key: 'pune', name: 'Pune', nameHi: 'पुणे', state: 'Maharashtra', coastal: false, farm: false, defaultScenario: 'clear', sunrise: '06:32', sunset: '18:41' },
-  { key: 'delhi', name: 'Delhi', nameHi: 'दिल्ली', state: 'Delhi', coastal: false, farm: false, defaultScenario: 'aqi_spike', sunrise: '06:48', sunset: '17:52' },
-  { key: 'mumbai', name: 'Mumbai', nameHi: 'मुंबई', state: 'Maharashtra', coastal: true, farm: false, defaultScenario: 'rainy_commute', sunrise: '06:39', sunset: '18:47' },
-  { key: 'chennai', name: 'Chennai', nameHi: 'चेन्नई', state: 'Tamil Nadu', coastal: true, farm: false, defaultScenario: 'beach_day', sunrise: '06:05', sunset: '18:04' },
-  { key: 'kochi', name: 'Kochi', nameHi: 'कोच्चि', state: 'Kerala', coastal: true, farm: false, defaultScenario: 'cyclone', sunrise: '06:28', sunset: '18:31' },
-  { key: 'chandigarh', name: 'Chandigarh', nameHi: 'चंडीगढ़', state: 'Punjab', coastal: false, farm: true, defaultScenario: 'frost_night', sunrise: '07:02', sunset: '17:38' },
-  { key: 'kolkata', name: 'Kolkata', nameHi: 'कोलकाता', state: 'West Bengal', coastal: false, farm: true, defaultScenario: 'clean_air_morning', sunrise: '05:58', sunset: '17:09' },
-  { key: 'bengaluru', name: 'Bengaluru', nameHi: 'बेंगलुरु', state: 'Karnataka', coastal: false, farm: false, defaultScenario: 'heatwave', sunrise: '06:22', sunset: '18:18' },
+  { key: 'pune', name: 'Pune', nameHi: 'पुणे', state: 'Maharashtra', coastal: false, farm: false, lat: 18.5204, lon: 73.8567, defaultScenario: 'clear', sunrise: '06:32', sunset: '18:41' },
+  { key: 'delhi', name: 'Delhi', nameHi: 'दिल्ली', state: 'Delhi', coastal: false, farm: false, lat: 28.6139, lon: 77.2090, defaultScenario: 'aqi_spike', sunrise: '06:48', sunset: '17:52' },
+  { key: 'mumbai', name: 'Mumbai', nameHi: 'मुंबई', state: 'Maharashtra', coastal: true, farm: false, lat: 19.0760, lon: 72.8777, defaultScenario: 'rainy_commute', sunrise: '06:39', sunset: '18:47' },
+  { key: 'chennai', name: 'Chennai', nameHi: 'चेन्नई', state: 'Tamil Nadu', coastal: true, farm: false, lat: 13.0827, lon: 80.2707, defaultScenario: 'beach_day', sunrise: '06:05', sunset: '18:04' },
+  { key: 'kochi', name: 'Kochi', nameHi: 'कोच्चि', state: 'Kerala', coastal: true, farm: false, lat: 9.9312, lon: 76.2673, defaultScenario: 'cyclone', sunrise: '06:28', sunset: '18:31' },
+  { key: 'chandigarh', name: 'Chandigarh', nameHi: 'चंडीगढ़', state: 'Punjab', coastal: false, farm: true, lat: 30.7333, lon: 76.7794, defaultScenario: 'frost_night', sunrise: '07:02', sunset: '17:38' },
+  { key: 'kolkata', name: 'Kolkata', nameHi: 'कोलकाता', state: 'West Bengal', coastal: false, farm: true, lat: 22.5726, lon: 88.3639, defaultScenario: 'clean_air_morning', sunrise: '05:58', sunset: '17:09' },
+  { key: 'bengaluru', name: 'Bengaluru', nameHi: 'बेंगलुरु', state: 'Karnataka', coastal: false, farm: false, lat: 12.9716, lon: 77.5946, defaultScenario: 'heatwave', sunrise: '06:22', sunset: '18:18' },
 ];
 
 export const SCENARIOS: ScenarioDef[] = [
@@ -704,6 +714,7 @@ function rankCard(type: CardType, score: number | undefined, user: UserProfile, 
 
 export interface BuildOptions {
   user: UserProfile; cityKey: string; scenarioKey: ScenarioKey | 'auto'; hour: number; lang: Lang;
+  live?: LiveWeather | null; // real observed data from the live source (Open-Meteo now)
 }
 
 /** Fill missing fields on a deserialized / legacy profile so buildHomepage never throws. */
@@ -724,10 +735,13 @@ export function normalizeUser(u: Partial<UserProfile> | undefined | null): UserP
 
 export function buildHomepage(o: BuildOptions): Homepage {
   const city = CITIES.find((c) => c.key === o.cityKey) ?? CITIES[0];
-  const scenario = SCENARIOS.find((s) => s.key === (o.scenarioKey === 'auto' ? city.defaultScenario : o.scenarioKey)) ?? SCENARIOS[0];
-  const p = resolveParams(scenario);
-  const hourly = buildHourly(scenario, p, o.hour);
-  const daily = buildDaily(scenario, p);
+  const useLive = o.scenarioKey === 'auto' && !!o.live;
+  const scenario = useLive
+    ? SCENARIOS.find((s) => s.key === 'clear')!
+    : (SCENARIOS.find((s) => s.key === (o.scenarioKey === 'auto' ? city.defaultScenario : o.scenarioKey)) ?? SCENARIOS[0]);
+  const p = useLive && o.live ? o.live.params : resolveParams(scenario);
+  const hourly = useLive && o.live ? o.live.hourly : buildHourly(scenario, p, o.hour);
+  const daily = useLive && o.live ? o.live.daily : buildDaily(scenario, p);
   const user = normalizeUser(o.user);
   const lang = o.lang;
   const now = new Date();
@@ -889,10 +903,15 @@ export function buildHomepage(o: BuildOptions): Homepage {
   if (md) parts.push(L(lang, `Heads-up: ${md.activity.label} at ${fmtTime(md.activity.time, lang)} — ${md.suggestion ?? 'conditions are marginal'}.`, `ध्यान दें: ${md.activity.labelHi} ${fmtTime(md.activity.time, lang)} — ${md.suggestion ?? 'स्थिति सीमांत है'}।`));
   else if (myDay.length) parts.push(L(lang, `All ${myDay.length} planned activities look good today.`, `आज की सभी ${myDay.length} गतिविधियाँ ठीक दिख रही हैं।`));
 
+  const freshnessMin = useLive && o.live ? Math.max(0, Math.round((now.getTime() - new Date(o.live.fetchedAt).getTime()) / 60000)) : 6;
+  const freshness = useLive
+    ? (freshnessMin <= 1 ? L(lang, 'just now', 'अभी') : L(lang, `${freshnessMin} min ago`, `${freshnessMin} मिनट पहले`))
+    : L(lang, '6 min ago', '6 मिनट पहले');
+
   return {
     user, city, scenario, params: p, hour: o.hour, pinned, cards: rest, hourly, daily,
     brief: parts.join(' '), myDay,
-    freshness: L(lang, '6 min ago', '6 मिनट पहले'),
+    freshness,
     providers: [
       { name: 'IMD', status: 'ok', latencyMs: 212 },
       { name: 'CPCB', status: scenario.key === 'aqi_spike' ? 'degraded' : 'ok', latencyMs: scenario.key === 'aqi_spike' ? 1840 : 340 },

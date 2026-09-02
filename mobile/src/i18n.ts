@@ -14,6 +14,9 @@ const dict = {
   good_evening: ['Good evening', 'शुभ संध्या'] as const,
   good_night: ['Good night', 'शुभ रात्रि'] as const,
   updated: ['Updated', 'अपडेट'] as const,
+  live_source: ['Live real-time', 'लाइव रीयल-टाइम'] as const,
+  live_refreshing: ['refreshing', 'रीफ़्रेश'] as const,
+  live_stale: ['Offline — cached, last updated', 'ऑफ़लाइन — कैश, अंतिम अपडेट'] as const,
   offline_banner: ['Offline — showing cached homepage', 'ऑफ़लाइन — कैश किया होमपेज'] as const,
   offline_retry: ['Retry', 'पुनः प्रयास'] as const,
   // home sections

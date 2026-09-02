@@ -13,6 +13,9 @@ interface Props {
   hp: Homepage;
   lang: Lang;
   offline: boolean;
+  liveFresh?: boolean;
+  liveStale?: boolean;
+  liveBusy?: boolean;
   onOpenMyDay: () => void;
   onOpenAlerts: () => void;
   onOpenMe: () => void;
@@ -22,7 +25,7 @@ interface Props {
   onRetry: () => void;
 }
 
-export default function Home({ hp, lang, offline, onOpenMyDay, onOpenAlerts, onOpenMe, onOpenAR, onOpenSocial, onRedoOnboarding, onRetry }: Props) {
+export default function Home({ hp, lang, offline, liveFresh, liveStale, liveBusy, onOpenMyDay, onOpenAlerts, onOpenMe, onOpenAR, onOpenSocial, onRedoOnboarding, onRetry }: Props) {
   const [filter, setFilter] = useState<PersonaKey | null>(null);
   const [explaining, setExplaining] = useState<Card | null>(null);
   const [hiddenTypes, setHiddenTypes] = useState<Card['type'][]>([]);
@@ -42,8 +45,10 @@ export default function Home({ hp, lang, offline, onOpenMyDay, onOpenAlerts, onO
           <View style={{ flex: 1 }}>
             <Text style={styles.greeting}>{t(lang, greetKey)}, {L(lang, hp.user.name, hp.user.nameHi)}</Text>
             <View style={styles.updatedRow}>
-              <View style={[styles.dot, { backgroundColor: offline ? '#F59E0B' : '#10B981' }]} />
-              <Text style={styles.updated}>{t(lang, 'updated')} {hp.freshness} · IMD · CPCB</Text>
+              <View style={[styles.dot, { backgroundColor: offline ? '#F59E0B' : liveStale ? '#F59E0B' : '#10B981' }]} />
+              <Text style={styles.updated}>
+                {liveBusy ? t(lang, 'live_refreshing') : liveStale ? t(lang, 'live_stale') : t(lang, 'live_source')} · {hp.freshness}
+              </Text>
             </View>
           </View>
           <View style={styles.headerRight}>
@@ -59,9 +64,11 @@ export default function Home({ hp, lang, offline, onOpenMyDay, onOpenAlerts, onO
           </View>
         </View>
 
-        {offline ? (
+        {(offline || liveStale) ? (
           <View style={styles.offlineBanner}>
-            <Text style={styles.offlineText}>📡 {t(lang, 'offline_banner')} 07:42 · WatermelonDB</Text>
+            <Text style={styles.offlineText}>
+              📡 {offline ? t(lang, 'offline_banner') : t(lang, 'live_stale')} · {hp.freshness}{liveBusy ? ` · ${t(lang, 'live_refreshing')}` : ''}
+            </Text>
             <TouchableOpacity style={styles.retryBtn} onPress={onRetry}><Text style={styles.retryText}>{t(lang, 'offline_retry')}</Text></TouchableOpacity>
           </View>
         ) : null}
