@@ -42,6 +42,7 @@ export const CARD_META: Record<
   travel_destination: { icon: '✈️', accent: '#6A1B9A', soft: '#F3E5F5' },
   packing_advisor: { icon: '🎒', accent: '#6A1B9A', soft: '#F3E5F5' },
   sunrise_sunset: { icon: '🌅', accent: '#EF6C00', soft: '#FFF3E0' },
+  health_score: { icon: '❤️', accent: '#2E7D32', soft: '#E8F5E9' },
 };
 
 export const CONDITION_ICON: Record<Condition, string> = {

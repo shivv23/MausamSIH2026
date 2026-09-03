@@ -229,6 +229,23 @@ const dict = {
   stale_badge_stale: ['Cached data · Stale', 'कैश डेटा · पुराना'] as const,
   stale_badge_offline: ['Offline Mode · WatermelonDB Cache', 'ऑफ़लाइन मोड · वॉटरमेलन-डीबी कैश'] as const,
   stale_sync_now: ['Sync Now', 'अभी सिंक करें'] as const,
+  // composite daily health score & symptom logging
+  health_title: ['Daily Health Score', 'दैनिक स्वास्थ्य स्कोर'] as const,
+  health_sub: ['AQI × UV × pollen × heat, weighted for you', 'AQI × UV × पराग × गर्मी, आपके लिए भारित'] as const,
+  health_your_conditions: ['Profile conditions', 'प्रोफ़ाइल स्थितियाँ'] as const,
+  health_log_symptoms: ['Log how you feel today', 'आज कैसा महसूस कर रहे हैं'] as const,
+  health_logged: ['Logged', 'दर्ज'] as const,
+  health_trend_tip: ['Tell us how you feel — over weeks Mausam learns which conditions trigger you', 'बताएँ कैसा महसूस करते हैं — हफ़्तों में मौसम सीखेगा कि कौन-सी स्थिति आपको परेशान करती है'] as const,
+  sym_breathing: ['Breathing difficulty', 'साँस में कठिनाई'] as const,
+  sym_headache: ['Headache', 'सिरदर्द'] as const,
+  sym_sneeze: ['Sneezing / nose', 'छींक / नाक'] as const,
+  sym_tired: ['Fatigue', 'थकान'] as const,
+  sym_eye: ['Eye irritation', 'आँखों में जलन'] as const,
+  // behavior-learning loop
+  learn_title: ['Learning your preferences', 'आपकी पसंद सीखता हुआ'] as const,
+  learn_hint: ['Tap a card to see why & boost it · Dismiss to tune it down. Rankings adapt instantly.', 'कार्ड टैप करें देखने व बढ़ाने के लिए · हटाने से कम करें। क्रम तुरंत बदलता है।'] as const,
+  learn_boosted: ['Card prioritized for you', 'आपके लिए कार्ड प्राथमिकता'] as const,
+  learn_dismissed: ['Card lowered', 'कार्ड घटाया गया'] as const,
 } as const;
 
 type Key = keyof typeof dict;

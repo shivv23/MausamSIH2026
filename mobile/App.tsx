@@ -3,7 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Activity, Card, Lang, LiveWeather, ScenarioKey, UserProfile, Provider } from './src/engine';
-import { buildHomepage, CITIES, DEMO_USERS } from './src/engine';
+import { buildHomepage, CITIES, DEMO_USERS, applyBehaviorSignal } from './src/engine';
 import { fetchLiveWeather, staleLiveWeather } from './src/live';
 import type { DisasterAlertWithPolygon } from './src/types';
 import Onboarding from './src/screens/Onboarding';
@@ -208,6 +208,15 @@ export default function App() {
     setProfile((p) => (p ? { ...p, activities: [...p.activities, { ...a, time: a.time || '09:00' }] } : p));
   };
 
+  const handleCardSignal = (type: Card['type'], signal: 'tap' | 'dismiss') => {
+    setProfile((p) => {
+      if (!p) return p;
+      const next = { ...p, behaviorBias: applyBehaviorSignal(type, signal, p.behaviorBias) };
+      AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
+
   const handlePublishAdminAlert = (alert: DisasterAlertWithPolygon) => {
     setActiveAlert(alert);
     // When an IMD Orange/Red alert is triggered, switch scenario to mirror emergency conditions
@@ -287,6 +296,7 @@ export default function App() {
           onOpenSocial={() => setShowSocial(true)}
           onRedoOnboarding={redoOnboarding}
           onRetry={() => { handleSyncNow(); refreshLive(activeCityKey, true); }}
+          onCardSignal={handleCardSignal}
         />
       )}
 

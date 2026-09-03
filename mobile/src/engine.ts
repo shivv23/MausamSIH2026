@@ -31,7 +31,7 @@ export type CardType =
   | 'heat_stress' | 'running_window' | 'cycling_window' | 'outdoor_comfort' | 'school_commute'
   | 'work_commute' | 'rain_timeline' | 'fog_alert' | 'farm_irrigation' | 'farm_frost'
   | 'farm_planting' | 'beach_safety' | 'tide_info' | 'surf_conditions' | 'event_weather'
-  | 'travel_destination' | 'packing_advisor' | 'sunrise_sunset';
+  | 'travel_destination' | 'packing_advisor' | 'sunrise_sunset' | 'health_score';
 
 export interface WeatherParams {
   temp: number; feelsLike: number; humidity: number; wind: number; gust: number;
@@ -122,11 +122,11 @@ export const PERSONAS: Record<PersonaKey, { label: string; labelHi: string; icon
 };
 
 export const PERSONA_INTERESTS: Record<PersonaKey, CardType[]> = {
-  health: ['aqi', 'pollen', 'uv', 'heat_stress', 'humidity'],
+  health: ['aqi', 'pollen', 'uv', 'heat_stress', 'humidity', 'health_score'],
   fitness: ['running_window', 'cycling_window', 'outdoor_comfort', 'uv', 'aqi'],
   beach: ['beach_safety', 'tide_info', 'surf_conditions', 'uv'],
   travel: ['travel_destination', 'packing_advisor', 'rain_timeline'],
-  parent: ['school_commute', 'rain_timeline', 'uv', 'aqi', 'heat_stress'],
+  parent: ['school_commute', 'rain_timeline', 'uv', 'aqi', 'heat_stress', 'health_score', 'pollen'],
   agriculture: ['farm_frost', 'farm_irrigation', 'farm_planting', 'rain_timeline'],
   commuter: ['work_commute', 'rain_timeline', 'fog_alert'],
   events: ['event_weather', 'rain_timeline', 'sunrise_sunset'],
@@ -638,6 +638,51 @@ export function pollenModel(p: WeatherParams, user: UserProfile, lang: Lang): Mo
   return { score, level: lvl, summary, factors: [F('Pollen index', 'पराग सूचकांक', `${idx}/10`, idx < 4 ? 'good' : idx < 7 ? 'neutral' : 'bad'), F('Wind', 'हवा', `${p.wind} km/h`, 'neutral')] };
 }
 
+export interface HealthSubScore { key: string; name: string; nameHi: string; value: string; score: number; impact: Factor['impact'] }
+
+/**
+ * Composite Daily Health Score — aggregates AQI, UV, pollen, heat and humidity
+ * into a single 0–100 figure, with condition-driven weights so the profile's
+ * sensitivities (asthma, pollen allergy, UV/heat sensitivity) shift priorities.
+ */
+export function healthModel(p: WeatherParams, user: UserProfile, lang: Lang): Model {
+  const asthma = user.conditions.includes('asthma');
+  const pollenAllergy = user.conditions.includes('pollen_allergy');
+  const uvSens = user.conditions.includes('uv_sensitive');
+  const heatSens = user.conditions.includes('heat_sensitive');
+
+  const sub: HealthSubScore[] = [
+    { key: 'aqi', name: 'Air', nameHi: 'वायु', value: `AQI ${p.aqi}`, score: clamp(Math.round(100 - p.aqi * 0.2)), impact: p.aqi <= 100 ? 'good' : p.aqi <= 200 ? 'neutral' : 'bad' },
+    { key: 'uv', name: 'UV', nameHi: 'UV', value: `${p.uv}`, score: clamp(Math.round(100 - p.uv * 8.5)), impact: p.uv <= 5 ? 'good' : p.uv <= 7 ? 'neutral' : 'bad' },
+    { key: 'pollen', name: 'Pollen', nameHi: 'पराग', value: `${p.pollen}/10`, score: clamp(Math.round(100 - p.pollen * 9)), impact: p.pollen < 4 ? 'good' : p.pollen < 7 ? 'neutral' : 'bad' },
+    { key: 'heat', name: 'Heat', nameHi: 'गर्मी', value: `${p.heatIndex}°`, score: clamp(Math.round(100 - Math.max(0, p.heatIndex - 25) * 2.8)), impact: p.heatIndex < 33 ? 'good' : p.heatIndex < 40 ? 'neutral' : 'bad' },
+    { key: 'humidity', name: 'Humidity', nameHi: 'नमी', value: `${p.humidity}%`, score: clamp(Math.round(100 - Math.max(0, p.humidity - 75) * 1.2 - Math.max(0, 25 - p.humidity) * 0.5)), impact: p.humidity <= 75 && p.humidity >= 30 ? 'good' : 'neutral' },
+  ];
+
+  let w = { aqi: 0.35, uv: 0.2, pollen: 0.2, heat: 0.15, humidity: 0.1 };
+  if (asthma) { w.aqi += 0.16; w.heat += 0.04; w.humidity -= 0.1; w.pollen -= 0.1; }
+  if (pollenAllergy) { w.pollen += 0.16; w.humidity -= 0.06; w.uv -= 0.1; }
+  if (uvSens) { w.uv += 0.16; w.humidity -= 0.06; w.pollen -= 0.1; }
+  if (heatSens) { w.heat += 0.16; w.humidity -= 0.06; w.uv -= 0.1; }
+  const tot = w.aqi + w.uv + w.pollen + w.heat + w.humidity;
+  const score = clamp(Math.round((sub[0].score * w.aqi + sub[1].score * w.uv + sub[2].score * w.pollen + sub[3].score * w.heat + sub[4].score * w.humidity) / tot));
+  const lvl = levelFor(score);
+
+  const factors: Factor[] = sub.map((s) => F(s.name, s.nameHi, s.value, s.impact));
+  const topBlocker = sub.find((s) => s.impact === 'bad');
+  const summary =
+    score >= 80
+      ? L(lang, `A rare, comfortable day: AQI ${p.aqi}, UV ${p.uv}, pollen ${p.pollen}/10. No health cautions — enjoy outdoors.`, `दुर्लभ आरामदायक दिन: AQI ${p.aqi}, UV ${p.uv}, पराग ${p.pollen}/10। कोई सावधानी नहीं — बाहर का आनंद लें।`)
+      : score >= 60
+        ? L(lang, `Mild cautions today — watch ${topBlocker ? topBlocker.name.toLowerCase() : 'air'} (${topBlocker ? topBlocker.value : '-'}). Fine for most with light protection.`, `आज हल्की सावधानियाँ — ${topBlocker ? topBlocker.nameHi : 'वायु'} पर ध्यान दें।`)
+        : L(lang, `Unhealthy exposure today (${LEVEL_HI[lvl]}). ${topBlocker ? `${topBlocker.name} is the main stressor.` : ''} Limit time outdoors and follow face-mask / shade guidance.`, `आज अस्वस्थ परिस्थिति (${LEVEL_HI[lvl]})। बाहर कम रहें, बचाव अपनाएँ।`);
+
+  return {
+    score, level: L(lang, lvl, LEVEL_HI[lvl]), summary, factors,
+    data: { healthSub: sub, color: scoreColor(score) },
+  };
+}
+
 export function eventModel(hourly: HourPoint[], atHour: number, _p: WeatherParams, lang: Lang, label: string): Model {
   const pt = hourly.find((h) => h.hour === Math.floor(atHour) % 24) ?? hourly[0];
   let pen = pt.rainProb * 0.7 + Math.max(0, pt.wind - 25) * 1.5 + Math.max(0, pt.temp - 33) * 3 + Math.max(0, 12 - pt.temp) * 2;
@@ -708,6 +753,20 @@ function rankCard(type: CardType, score: number | undefined, user: UserProfile, 
   const behavior = user.behaviorBias[type] ?? 0.5;
   const raw = W.interest * interest + W.context * context + W.urgency * urgency + W.time * time + W.location * location + W.behavior * behavior;
   return { rank: Math.round((pinned ? 2 + raw : raw) * 100), breakdown: { interest, context, urgency, time, location, behavior } };
+}
+
+export type BehaviorSignal = 'tap' | 'dismiss';
+
+/**
+ * Behavior-learning loop — each explicit user signal (tapping a card, or
+ * dismissing one) nudges that card type's bias on the profile, which the
+ * ranking model reads to re-prioritise future cards. Signals accumulate
+ * on-device and are applied instantly on the next homepage build.
+ */
+export function applyBehaviorSignal(type: CardType, signal: BehaviorSignal, bias: Partial<Record<CardType, number>> = {}): Partial<Record<CardType, number>> {
+  const cur = bias[type] ?? 0.5;
+  const delta = signal === 'tap' ? 0.12 : -0.15;
+  return { ...bias, [type]: clamp(round1(cur + delta)) };
 }
 
 // ---------------------------------------------------------------- homepage builder
@@ -817,6 +876,8 @@ export function buildHomepage(o: BuildOptions): Homepage {
   if (wants('farm_irrigation')) push('farm_irrigation', 'agriculture', L(lang, 'Irrigation advice', 'सिंचाई सलाह'), irrigationModel(p, daily, lang), { why: L(lang, `Farming persona; soil moisture (ISRO SMAP proxy) vs 3-day rain forecast.`, `खेती पर्सोना; मिट्टी नमी बनाम 3-दिन बारिश।`), source: 'ISRO' });
   if (wants('heat_stress') && p.heatIndex >= 33) push('heat_stress', 'health', L(lang, 'Heat stress', 'गर्मी तनाव'), heatModel(p, lang), { why: L(lang, `Heat index ${p.heatIndex}° crossed the 33° threshold for the ${user.personas[0]} persona.`, `ताप सूचकांक ${p.heatIndex}° सीमा से ऊपर।`) });
   if (wants('pollen')) push('pollen', 'health', L(lang, 'Pollen', 'पराग'), pollenModel(p, user, lang), { why: L(lang, `${user.conditions.includes('pollen_allergy') ? 'Pollen-allergy profile' : 'Health persona'}; index derived from humidity, wind and season.`, `पराग एलर्जी प्रोफ़ाइल; नमी-हवा-मौसम से सूचकांक।`), source: 'Mausam Engine' });
+  // Composite Daily Health Score — always offered to health/parent personas
+  if (wants('health_score')) push('health_score', 'health', L(lang, 'Daily health score', 'दैनिक स्वास्थ्य स्कोर'), healthModel(p, user, lang), { why: L(lang, `Composite of AQI, UV, pollen, heat & humidity, weighted by your profile conditions${user.conditions.length ? ` (${user.conditions.join(', ')})` : ''}.`, `AQI, UV, पराग, गर्मी व नमी का संयुक्त स्कोर, आपकी प्रोफ़ाइल शर्तों के अनुसार भारित।`) });
   if (wants('event_weather')) {
     const ev = user.activities.find((a) => a.type === 'event');
     push('event_weather', 'events', L(lang, 'Event weather', 'आयोजन मौसम'), eventModel(hourly, timeToHour(ev?.time ?? '19:00'), p, lang, ev ? L(lang, ev.label, ev.labelHi) : L(lang, 'Your event', 'आपका आयोजन')), { why: L(lang, `Events persona with "${ev?.label ?? 'event'}" at ${fmtTime(ev?.time ?? '19:00', lang)}.`, `आयोजन पर्सोना; ${fmtTime(ev?.time ?? '19:00', lang)} पर आयोजन।`) });

@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import type { Card, Homepage, Lang, MyDayItem } from '../engine';
-import { aqiBand, fmtHour, fmtTime, L, SEVERITY_COLOR, uvBand } from '../engine';
+import type { Card, Homepage, Lang, MyDayItem, BehaviorSignal } from '../engine';
+import { aqiBand, CONDITIONS, fmtHour, fmtTime, healthModel, L, scoreColor, SEVERITY_COLOR, uvBand } from '../engine';
 import { t } from '../i18n';
 import { colors, CARD_META, CONDITION_ICON, CONDITION_LABEL, heroGradient, statusColor } from '../theme';
 import { CardMetaIcon, Chip, PhaseBadge, ScoreRing } from './ui';
@@ -57,12 +57,99 @@ function Stat({ label, value, sub, dot }: { label: string; value: string; sub: s
   );
 }
 
+/* ----------------------------------------------------- daily health score */
+export const SYMPTOMS: { key: string; label: string; labelHi: string; emoji: string }[] = [
+  { key: 'breathing', label: 'Breathing difficulty', labelHi: 'साँस में कठिनाई', emoji: '🫁' },
+  { key: 'headache', label: 'Headache', labelHi: 'सिरदर्द', emoji: '🤕' },
+  { key: 'sneeze', label: 'Sneezing / nose', labelHi: 'छींक / नाक', emoji: '🤧' },
+  { key: 'tired', label: 'Fatigue', labelHi: 'थकान', emoji: '😪' },
+  { key: 'eye', label: 'Eye irritation', labelHi: 'आँखों में जलन', emoji: '👁️' },
+];
+
+export function HealthScoreCard({
+  hp,
+  lang,
+  today,
+  onToggleSymptom,
+}: {
+  hp: Homepage;
+  lang: Lang;
+  today: string[];
+  onToggleSymptom: (key: string) => void;
+}) {
+  const m = healthModel(hp.params, hp.user, lang);
+  const subs = (m.data?.healthSub ?? []) as import('../engine').HealthSubScore[];
+  const accent = (m.data?.color as string) ?? scoreColor(m.score ?? 0);
+  return (
+    <View style={styles.healthCard}>
+      <View style={styles.healthHead}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.cardTitle}>❤️ {t(lang, 'health_title')}</Text>
+          <Text style={styles.cardSub}>{t(lang, 'health_sub')}</Text>
+        </View>
+        <ScoreRing score={m.score ?? 0} label={m.level} size={58} />
+      </View>
+
+      <Text style={styles.healthSummary}>{m.summary}</Text>
+
+      <View style={styles.chipRow}>
+        {subs.map((s) => (
+          <View
+            key={s.key}
+            style={[
+              styles.healthFactor,
+              s.impact === 'good'
+                ? styles.factorGood
+                : s.impact === 'bad'
+                ? styles.factorBad
+                : styles.factorNeutral,
+            ]}
+          >
+            <Text style={styles.healthFactorText}>
+              <Text style={{ fontWeight: '900', color: accent }}>{s.score}</Text> · {L(lang, s.name, s.nameHi)} {s.value}
+            </Text>
+          </View>
+        ))}
+      </View>
+
+      {hp.user.conditions.length > 0 ? (
+        <View style={styles.chipRow}>
+          {hp.user.conditions.map((c) => (
+            <Chip key={c} tone="amber">
+              <Text style={{ fontSize: 10.5 }}>{CONDITIONS[c]?.label ?? c}</Text>
+            </Chip>
+          ))}
+        </View>
+      ) : null}
+
+      <Text style={styles.healthLogTitle}>☝️ {t(lang, 'health_log_symptoms')}</Text>
+      <View style={styles.chipRow}>
+        {SYMPTOMS.map((sy) => {
+          const on = today.includes(sy.key);
+          return (
+            <Pressable
+              key={sy.key}
+              style={[styles.symChip, on && { backgroundColor: accent, borderColor: accent }]}
+              onPress={() => onToggleSymptom(sy.key)}
+            >
+              <Text style={[styles.symChipText, on && { color: '#fff' }]}>
+                {sy.emoji} {on ? '✓ ' : ''}{L(lang, sy.label, sy.labelHi)}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <Text style={styles.healthTip}>{t(lang, 'health_trend_tip')}</Text>
+    </View>
+  );
+}
+
 /* --------------------------------------------------------------- warning */
-export function WarningCard({ card, lang, onExplain }: { card: Card; lang: Lang; onExplain: (c: Card) => void }) {
+export function WarningCard({ card, lang, onExplain, onSignal }: { card: Card; lang: Lang; onExplain: (c: Card) => void; onSignal?: (type: Card['type'], signal: BehaviorSignal) => void }) {
   const color = SEVERITY_COLOR[card.severity ?? 'red'];
   const body = card.data.body as string | undefined;
   return (
-    <Pressable style={[styles.warnCard, { borderColor: color }]} onPress={() => onExplain(card)}>
+    <Pressable style={[styles.warnCard, { borderColor: color }]} onPress={() => { onSignal?.(card.type, 'tap'); onExplain(card); }}>
       <View style={[styles.warnBar, { backgroundColor: color }]} />
       <View style={styles.warnBody}>
         <View style={styles.warnHeadRow}>
@@ -97,14 +184,14 @@ export function WarningCard({ card, lang, onExplain }: { card: Card; lang: Lang;
 }
 
 /* ---------------------------------------------------------------- impact */
-export function ImpactCard({ card, lang, onExplain, rank }: { card: Card; lang: Lang; onExplain: (c: Card) => void; rank: number }) {
+export function ImpactCard({ card, lang, onExplain, rank, onSignal }: { card: Card; lang: Lang; onExplain: (c: Card) => void; rank: number; onSignal?: (type: Card['type'], signal: BehaviorSignal) => void }) {
   const meta = CARD_META[card.type] ?? CARD_META.mausam_brief;
   const isYellowOfficial = card.type === 'severe_warning';
   const accent = isYellowOfficial ? SEVERITY_COLOR[card.severity ?? 'yellow'] : meta.accent;
   const soft = isYellowOfficial ? '#FFF8E1' : meta.soft;
   const hasScore = card.score !== undefined && card.score !== null && !Number.isNaN(card.score);
   return (
-    <Pressable style={[styles.impact, { transform: [] }]} onPress={() => onExplain(card)}>
+    <Pressable style={[styles.impact, { transform: [] }]} onPress={() => { onSignal?.(card.type, 'tap'); onExplain(card); }}>
       <View style={styles.impactTop}>
         <CardMetaIcon type={card.type} />
         <View style={styles.impactMain}>
@@ -331,6 +418,23 @@ const styles = StyleSheet.create({
   impactFoot: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 },
   impactSrc: { fontSize: 11, color: colors.textMuted },
   impactWhy: { fontSize: 11, fontWeight: '700', color: colors.primary },
+
+  healthCard: { ...cardBase, padding: 16, borderWidth: 1, borderColor: 'rgba(46,125,50,0.18)' },
+  healthHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  healthSummary: { fontSize: 12.5, color: '#475569', marginTop: 10, lineHeight: 18 },
+  healthFactor: { borderRadius: 999, borderWidth: 1, paddingHorizontal: 9, paddingVertical: 3 },
+  healthFactorText: { fontSize: 10.5, fontWeight: '600', color: '#475569' },
+  healthLogTitle: { fontSize: 12, fontWeight: '800', color: colors.text, marginTop: 14, marginBottom: 4 },
+  healthTip: { fontSize: 10.5, color: colors.textSoft, marginTop: 10, lineHeight: 15 },
+  symChip: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  symChipText: { fontSize: 11, fontWeight: '700', color: '#334155' },
 
   myDayCard: { ...cardBase, padding: 16 },
   myDayHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

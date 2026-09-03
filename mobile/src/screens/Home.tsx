@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import type { Card, Homepage, Lang, PersonaKey } from '../engine';
+import type { BehaviorSignal, Card, Homepage, Lang, PersonaKey } from '../engine';
 import { L, PERSONAS, SEVERITY_COLOR } from '../engine';
 import { t } from '../i18n';
 import { colors } from '../theme';
 import { SectionHeader } from '../components/ui';
-import { HeroCard, WarningCard, ImpactCard, MyDayCard, BriefCard, HourlyStrip, DailyStrip } from '../components/cards';
+import { HeroCard, WarningCard, ImpactCard, MyDayCard, BriefCard, HourlyStrip, DailyStrip, HealthScoreCard } from '../components/cards';
 import { ExplainSheet } from '../components/ExplainSheet';
 import type { DisasterAlertWithPolygon, StalenessInfo } from '../types';
+
+const SYMPTOM_KEY = '@mausam/symptoms';
 
 interface Props {
   hp: Homepage;
@@ -29,6 +32,7 @@ interface Props {
   onOpenSocial: () => void;
   onRedoOnboarding: () => void;
   onRetry: () => void;
+  onCardSignal?: (type: Card['type'], signal: BehaviorSignal) => void;
 }
 
 export default function Home({
@@ -50,10 +54,36 @@ export default function Home({
   onOpenSocial,
   onRedoOnboarding,
   onRetry,
+  onCardSignal,
 }: Props) {
   const [filter, setFilter] = useState<PersonaKey | null>(null);
   const [explaining, setExplaining] = useState<Card | null>(null);
   const [hiddenTypes, setHiddenTypes] = useState<Card['type'][]>([]);
+  const [today, setToday] = useState<string[]>([]);
+  const [learnFlash, setLearnFlash] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    const todayKey = new Date().toISOString().slice(0, 10);
+    AsyncStorage.getItem(SYMPTOM_KEY).then((raw) => {
+      if (raw) {
+        try {
+          const m = JSON.parse(raw);
+          setToday(m[todayKey] ?? []);
+        } catch { /* ignore */ }
+      }
+    });
+  }, []);
+
+  const toggleSymptom = (key: string) => {
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const next = today.includes(key) ? today.filter((k) => k !== key) : [...today, key];
+    setToday(next);
+    AsyncStorage.getItem(SYMPTOM_KEY).then((raw) => {
+      const m = raw ? JSON.parse(raw) : {};
+      m[todayKey] = next;
+      AsyncStorage.setItem(SYMPTOM_KEY, JSON.stringify(m));
+    });
+  };
 
   const greetKey =
     hp.hour < 5
@@ -70,7 +100,17 @@ export default function Home({
     ? hp.cards.filter((c) => (c.persona === filter || c.type === 'severe_warning') && !hiddenTypes.includes(c.type))
     : hp.cards.filter((c) => !hiddenTypes.includes(c.type));
 
-  const handleHide = (c: Card) => setHiddenTypes((prev) => (prev.includes(c.type) ? prev : [...prev, c.type]));
+  const handleHide = (c: Card) => {
+    setHiddenTypes((prev) => (prev.includes(c.type) ? prev : [...prev, c.type]));
+    signal(c.type, 'dismiss');
+  };
+  const signal = (type: Card['type'], s: BehaviorSignal) => {
+    onCardSignal?.(type, s);
+    setLearnFlash(s === 'tap' ? `${type}|${s}` : `${type}|${s}`);
+    clearTimeout(learnTimer.current);
+    learnTimer.current = setTimeout(() => setLearnFlash(null), 1800);
+  };
+  const learnTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const alertCount =
     (activeAlert ? 1 : 0) +
     hp.pinned.length +
@@ -206,9 +246,21 @@ export default function Home({
         {/* Hero Current Weather Card */}
         <HeroCard hp={hp} lang={lang} />
 
+        {/* Composite Daily Health Score + symptom logging */}
+        <HealthScoreCard hp={hp} lang={lang} today={today} onToggleSymptom={toggleSymptom} />
+
+        {/* Behavior-learning hint */}
+        {learnFlash ? (
+          <View style={styles.learnHint}>
+            <Text style={styles.learnHintText}>
+              🧠 {learnFlash.endsWith('|tap') ? t(lang, 'learn_boosted') : t(lang, 'learn_dismissed')}
+            </Text>
+          </View>
+        ) : null}
+
         {/* Pinned Warnings */}
         {hp.pinned.map((c) => (
-          <WarningCard key={c.id} card={c} lang={lang} onExplain={setExplaining} />
+          <WarningCard key={c.id} card={c} lang={lang} onExplain={setExplaining} onSignal={signal} />
         ))}
 
         {/* Persona Filter Chips */}
@@ -248,15 +300,15 @@ export default function Home({
         {/* Ranked Decision-Support Cards */}
         <View style={styles.cards}>
           {visible.slice(0, 2).map((c, i) => (
-            <ImpactCard key={c.id} card={c} lang={lang} onExplain={setExplaining} rank={i} />
+            <ImpactCard key={c.id} card={c} lang={lang} onExplain={setExplaining} rank={i} onSignal={signal} />
           ))}
           {hp.myDay.length > 0 ? <MyDayCard items={hp.myDay} lang={lang} onOpen={onOpenMyDay} /> : null}
           {visible.slice(2, 4).map((c, i) => (
-            <ImpactCard key={c.id} card={c} lang={lang} onExplain={setExplaining} rank={i + 2} />
+            <ImpactCard key={c.id} card={c} lang={lang} onExplain={setExplaining} rank={i + 2} onSignal={signal} />
           ))}
           <BriefCard text={hp.brief} lang={lang} />
           {visible.slice(4).map((c, i) => (
-            <ImpactCard key={c.id} card={c} lang={lang} onExplain={setExplaining} rank={i + 4} />
+            <ImpactCard key={c.id} card={c} lang={lang} onExplain={setExplaining} rank={i + 4} onSignal={signal} />
           ))}
           <HourlyStrip hp={hp} lang={lang} />
           <DailyStrip hp={hp} lang={lang} />
@@ -348,6 +400,21 @@ const styles = StyleSheet.create({
   offlineSub: { fontSize: 10.5, color: '#B45309', marginTop: 1 },
   retryBtn: { backgroundColor: '#F59E0B', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
   retryText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  learnHint: {
+    backgroundColor: '#F0FDF4',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    shadowColor: '#16A34A',
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  learnHintText: { fontSize: 12, fontWeight: '800', color: '#166534' },
   pushCard: {
     backgroundColor: '#fff',
     borderRadius: 18,
