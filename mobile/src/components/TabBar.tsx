@@ -6,11 +6,12 @@ import type { Tab } from '../../App';
 import { t } from '../i18n';
 import type { Lang } from '../engine';
 
-const ICONS: Record<Tab, string> = { home: '🏠', myday: '📅', ask: '💬', alerts: '🔔', me: '👤' };
+const ICONS: Record<Tab, string> = { home: '🏠', map: '🗺️', myday: '📅', ask: '💬', alerts: '🔔', me: '👤' };
 
 export default function TabBar({ current, onTab, lang }: { current: Tab; onTab: (t: Tab) => void; lang: Lang }) {
   const tabs: { key: Tab; label: string }[] = [
     { key: 'home', label: t(lang, 'nav_home') },
+    { key: 'map', label: t(lang, 'nav_map') },
     { key: 'myday', label: t(lang, 'nav_myday') },
     { key: 'ask', label: t(lang, 'nav_ask') },
     { key: 'alerts', label: t(lang, 'nav_alerts') },

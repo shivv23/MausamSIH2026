@@ -913,6 +913,7 @@ export function buildHomepage(o: BuildOptions): Homepage {
     brief: parts.join(' '), myDay,
     freshness,
     providers: [
+
       { name: 'IMD', status: 'ok', latencyMs: 212 },
       { name: 'CPCB', status: scenario.key === 'aqi_spike' ? 'degraded' : 'ok', latencyMs: scenario.key === 'aqi_spike' ? 1840 : 340 },
       { name: 'INCOIS', status: 'ok', latencyMs: 405 },
