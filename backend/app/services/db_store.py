@@ -9,7 +9,7 @@ from __future__ import annotations
 from sqlalchemy import delete, select
 
 from app.db import get_session
-from app.models.orm import ActivityRow, UserRow
+from app.models.orm import ActivityRow, UserCredRow, UserRow
 from app.models.schemas import Activity, ActivityInput, UserProfile
 
 
@@ -65,8 +65,60 @@ async def upsert_profile(profile: UserProfile) -> None:
             s.add(row)
         row.personas = list(profile.personas)
         row.language = profile.language
-        row.city = profile.city
+        if profile.display_name is not None:
+            row.display_name = profile.display_name
+        if profile.city is not None:
+            row.city = profile.city
         row.health = dict(profile.health)
+        await s.commit()
+
+
+async def get_synced_profile(user_id: str) -> dict | None:
+    async with get_session() as s:
+        row = (await s.execute(select(UserRow).where(UserRow.id == user_id))).scalar_one_or_none()
+        if row is None or not row.profile_jsonb:
+            return None
+        return dict(row.profile_jsonb)
+
+
+async def put_synced_profile(user_id: str, data: dict) -> None:
+    async with get_session() as s:
+        row = (await s.execute(select(UserRow).where(UserRow.id == user_id))).scalar_one_or_none()
+        if row is None:
+            row = UserRow(id=user_id)
+            s.add(row)
+        row.profile_jsonb = data
+        if "name" in data:
+            row.display_name = data["name"]
+        if "city" in data:
+            row.city = data["city"]
+        if "language" in data:
+            row.language = data["language"]
+        if "personas" in data:
+            row.personas = list(data["personas"])
+        if "conditions" in data:
+            row.health = {c: True for c in data["conditions"]}
+        await s.commit()
+
+
+# ---- Mobile account credentials ---------------------------------------------
+
+async def get_password_hash(user_id: str) -> str | None:
+    async with get_session() as s:
+        row = (await s.execute(
+            select(UserCredRow).where(UserCredRow.user_id == user_id))).scalar_one_or_none()
+        return row.password_hash if row else None
+
+
+async def set_password_hash(user_id: str, password_hash: str) -> None:
+    async with get_session() as s:
+        row = (await s.execute(
+            select(UserCredRow).where(UserCredRow.user_id == user_id))).scalar_one_or_none()
+        if row is None:
+            row = UserCredRow(user_id=user_id, password_hash=password_hash)
+            s.add(row)
+        else:
+            row.password_hash = password_hash
         await s.commit()
 
 

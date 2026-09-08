@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime
 
 from geoalchemy2 import Geometry
-from sqlalchemy import DateTime, Float, String, Text
+from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -23,6 +23,30 @@ def _uuid() -> str:
     return uuid.uuid4().hex
 
 
+class AdminUserRow(Base):
+    """Authenticated dashboard operator (IMD admin)."""
+
+    __tablename__ = "admin_users"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_uuid)
+    username: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(256))
+    display_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    role: Mapped[str] = mapped_column(String(32), default="admin")  # admin | operator
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class UserCredRow(Base):
+    """Mobile app account credential (user id + password hash) for sync."""
+
+    __tablename__ = "user_credentials"
+
+    user_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    password_hash: Mapped[str] = mapped_column(String(256))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+
 class UserRow(Base):
     __tablename__ = "users"
 
@@ -32,6 +56,7 @@ class UserRow(Base):
     language: Mapped[str] = mapped_column(String(8), default="en")
     city: Mapped[str | None] = mapped_column(String(80), nullable=True)
     health: Mapped[dict] = mapped_column(JSONB, default=dict)
+    profile_jsonb: Mapped[dict] = mapped_column(JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
 

@@ -102,8 +102,10 @@ class UserProfile(BaseModel):
     """Persisted user context used by ranking & impact models."""
 
     user_id: str
+    display_name: Optional[str] = None
     personas: list[str] = []
     language: str = "en"
+    city: Optional[str] = None
     timezone: str = "Asia/Kolkata"
     units: str = "metric"
     health: dict[str, Any] = {}  # {'asthma': True, 'uv_sensitive': True}
@@ -231,6 +233,65 @@ class MyDayResponse(BaseModel):
     summary: str
     best_window: str
     slots: list[ActivityWindow] = []
+
+
+# ---- Cross-device profile sync ----------------------------------------------
+
+class SyncLocation(BaseModel):
+    """A saved place (home/work/school/farm) on the mobile profile."""
+    type: str = "home"
+    label: str = ""
+
+
+class SyncActivity(BaseModel):
+    """A scheduled activity on the mobile profile."""
+    type: str
+    label: str = ""
+    label_hi: Optional[str] = None
+    time: str = "09:00"
+
+
+class ProfileSync(BaseModel):
+    """The mobile UserProfile payload used to move a profile between devices.
+
+    The client stores this locally (AsyncStorage) and can PUT it to the server,
+    then GET it back on another device to restore the same experience.
+    """
+    id: str
+    name: str = ""
+    name_hi: Optional[str] = None
+    personas: list[str] = []
+    conditions: list[str] = []
+    activities: list[SyncActivity] = []
+    locations: list[SyncLocation] = []
+    city: str = "pune"
+    language: str = "en"
+    behavior_bias: dict[str, float] = {}
+
+
+class ProfileSyncOut(BaseModel):
+    user_id: str
+    profile: Optional[ProfileSync] = None
+    updated_at: Optional[datetime] = None
+
+
+# ---- Mobile account authentication ------------------------------------------
+
+class RegisterRequest(BaseModel):
+    """Create a mobile account that owns a synced profile across devices."""
+    user_id: str = Field(..., min_length=2, max_length=64, pattern=r"^[A-Za-z0-9_.-]+$")
+    password: str = Field(..., min_length=6, max_length=128)
+
+
+class LoginRequest(BaseModel):
+    user_id: str = Field(..., min_length=2, max_length=64, pattern=r"^[A-Za-z0-9_.-]+$")
+    password: str = Field(..., min_length=1, max_length=128)
+
+
+class AuthOut(BaseModel):
+    user_id: str
+    token: str
+    message: str = "ok"
 
 
 # ---- Ask Mausam -----------------------------------------------------------

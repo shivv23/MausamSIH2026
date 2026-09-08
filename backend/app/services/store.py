@@ -16,6 +16,9 @@ from app.services import db_store
 _LOCK = threading.Lock()
 _PROFILES: dict[str, UserProfile] = {}
 _ACTIVITIES: dict[str, list[Activity]] = {}
+_SYNC: dict[str, dict] = {}
+_SYNC_AT: dict[str, str] = {}
+_AUTH: dict[str, str] = {}  # user_id -> password hash (mobile accounts)
 
 # Default persona mapping for named demo users (cold start without a DB).
 _COLD_PERSONAS = {
@@ -77,7 +80,10 @@ def remove_activity(user_id: str, activity_id: str) -> bool:
 
 def _db_enabled() -> bool:
     from app.core.config import settings
-    return bool(getattr(settings, "database_enabled", False))
+    if not bool(getattr(settings, "database_enabled", False)):
+        return False
+    from app.db import database_available
+    return database_available()
 
 
 def _run_async(fn, *args):
@@ -113,3 +119,43 @@ def hydrate_city(user_id: str, city: str | None):
             changed.saved_locations = [pick_anchor(city)]
             _PROFILES[user_id] = changed
     return _PROFILES[user_id]
+
+
+# ---- Cross-device profile sync (opaque JSON blob per user) ----
+
+def get_synced_profile(user_id: str) -> dict | None:
+    """Return the synced mobile profile for a user, or None if none exists."""
+    if _db_enabled():
+        return _run_async(db_store.get_synced_profile, user_id)
+    with _LOCK:
+        return dict(_SYNC.get(user_id) or {})
+
+
+def put_synced_profile(user_id: str, data: dict) -> None:
+    """Overwrite the synced mobile profile for a user (last-write-wins)."""
+    from datetime import datetime, timezone
+    if _db_enabled():
+        _run_async(db_store.put_synced_profile, user_id, data)
+        return
+    with _LOCK:
+        _SYNC[user_id] = data
+        _SYNC_AT[user_id] = datetime.now(timezone.utc).isoformat()
+
+
+# ---- Mobile account credentials (register / login) ------------------------
+
+def get_password_hash(user_id: str) -> str | None:
+    """Return the stored password hash for a mobile account, if registered."""
+    if _db_enabled():
+        return _run_async(db_store.get_password_hash, user_id)
+    with _LOCK:
+        return _AUTH.get(user_id)
+
+
+def set_password_hash(user_id: str, password_hash: str) -> None:
+    """Register (or overwrite) the password hash for a mobile account."""
+    if _db_enabled():
+        _run_async(db_store.set_password_hash, user_id, password_hash)
+        return
+    with _LOCK:
+        _AUTH[user_id] = password_hash

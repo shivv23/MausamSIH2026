@@ -1,10 +1,11 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import type { Homepage, Lang, ScenarioKey, PersonaKey } from '../engine';
+import type { Homepage, Lang, ScenarioKey, PersonaKey, UserProfile } from '../engine';
 import { CONDITIONS, DEMO_USERS, fmtTime, L, PERSONAS, SCENARIOS, SEVERITY_COLOR } from '../engine';
 import { t } from '../i18n';
 import { colors } from '../theme';
+import { getAuthToken, getSyncServer, loginAccount, pushProfile, pullProfile, registerAccount, setAuthToken, setSyncServer } from '../services/profileSync';
 import type { StalenessInfo } from '../types';
 
 interface Props {
@@ -17,6 +18,7 @@ interface Props {
   onSetScenario: (s: ScenarioKey | 'auto') => void;
   onOpenAdmin?: () => void;
   onOpenNotifSettings?: () => void;
+  onSyncPull?: (p: UserProfile) => void;
   isOffline?: boolean;
   staleness?: StalenessInfo;
 }
@@ -31,10 +33,124 @@ export default function Me({
   onSetScenario,
   onOpenAdmin,
   onOpenNotifSettings,
+  onSyncPull,
   isOffline,
   staleness,
 }: Props) {
   const u = hp.user;
+  const [syncServer, setSyncServerState] = useState('');
+  const [syncPassword, setSyncPassword] = useState('');
+  const [syncToken, setSyncTokenState] = useState<string | null>(null);
+  const [syncBusy, setSyncBusy] = useState(false);
+  const [syncMsg, setSyncMsg] = useState('');
+  const [syncErr, setSyncErr] = useState(false);
+  const [lastSyncAt, setLastSyncAt] = useState('');
+
+  React.useEffect(() => {
+    getSyncServer().then((s) => setSyncServerState(s ?? 'http://localhost:8000'));
+    getAuthToken().then((tok) => setSyncTokenState(tok));
+  }, []);
+
+  const saveServer = async () => {
+    await setSyncServer(syncServer);
+    setSyncErr(false);
+    setSyncMsg(t(lang, 'sync_server_saved'));
+  };
+
+  const rememberToken = async (token: string) => {
+    await setAuthToken(token);
+    setSyncTokenState(token);
+    setSyncPassword('');
+    setSyncErr(false);
+  };
+
+  const handleSignup = async () => {
+    if (syncPassword.length < 6) {
+      setSyncErr(true);
+      setSyncMsg(t(lang, 'sync_password_short'));
+      return;
+    }
+    setSyncBusy(true);
+    setSyncMsg('');
+    try {
+      const token = await registerAccount(syncServer, u.id, syncPassword);
+      await rememberToken(token);
+      setSyncMsg(t(lang, 'sync_signed_up'));
+    } catch (e) {
+      setSyncErr(true);
+      setSyncMsg(t(lang, 'sync_error') + ': ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setSyncBusy(false);
+    }
+  };
+
+  const handleLogin = async () => {
+    if (!syncPassword) {
+      setSyncErr(true);
+      setSyncMsg(t(lang, 'sync_password_required'));
+      return;
+    }
+    setSyncBusy(true);
+    setSyncMsg('');
+    try {
+      const token = await loginAccount(syncServer, u.id, syncPassword);
+      await rememberToken(token);
+      setSyncMsg(t(lang, 'sync_logged_in'));
+    } catch (e) {
+      setSyncErr(true);
+      setSyncMsg(t(lang, 'sync_error') + ': ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setSyncBusy(false);
+    }
+  };
+
+  const handlePush = async () => {
+    if (!syncToken) {
+      setSyncErr(true);
+      setSyncMsg(t(lang, 'sync_auth_required'));
+      return;
+    }
+    setSyncBusy(true);
+    setSyncMsg('');
+    try {
+      await pushProfile(u, syncServer, syncToken);
+      setLastSyncAt(new Date().toLocaleTimeString());
+      setSyncErr(false);
+      setSyncMsg(t(lang, 'sync_pushed'));
+    } catch (e) {
+      setSyncErr(true);
+      setSyncMsg(t(lang, 'sync_error') + ': ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setSyncBusy(false);
+    }
+  };
+
+  const handlePull = async () => {
+    if (!syncToken) {
+      setSyncErr(true);
+      setSyncMsg(t(lang, 'sync_auth_required'));
+      return;
+    }
+    setSyncBusy(true);
+    setSyncMsg('');
+    try {
+      const p = await pullProfile(u.id, syncServer, syncToken);
+      if (!p) {
+        setSyncErr(false);
+        setSyncMsg(t(lang, 'sync_none'));
+        return;
+      }
+      await onSyncPull?.(p);
+      setLastSyncAt(new Date().toLocaleTimeString());
+      setSyncErr(false);
+      setSyncMsg(t(lang, 'sync_pulled'));
+    } catch (e) {
+      setSyncErr(true);
+      setSyncMsg(t(lang, 'sync_error') + ': ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setSyncBusy(false);
+    }
+  };
   const locIcon: Record<string, string> = { home: '🏠', work: '💼', school: '🎒', farm: '🌱' };
   const currentDemoIndex = DEMO_USERS.findIndex((d) => d.user.id === u.id);
   const simulated = scenario !== 'auto';
@@ -256,6 +372,86 @@ export default function Me({
           </View>
         </Section>
 
+        {/* Cloud Sync — cross-device profile restore */}
+        <Section title={t(lang, 'sync_title')}>
+          <Text style={styles.privacyText}>{t(lang, 'sync_desc')}</Text>
+          <TextInput
+            style={styles.syncInput}
+            value={syncServer}
+            onChangeText={setSyncServerState}
+            placeholder="http://localhost:8000"
+            placeholderTextColor="#94A3B8"
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+          />
+          <TextInput
+            style={styles.syncInput}
+            value={syncPassword}
+            onChangeText={(v) => {
+              setSyncPassword(v);
+              setSyncErr(false);
+            }}
+            placeholder={t(lang, 'sync_password')}
+            placeholderTextColor="#94A3B8"
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <View style={styles.syncRow}>
+            <TouchableOpacity
+              style={[styles.syncAuthBtn, syncBusy && styles.syncBtnDisabled]}
+              disabled={syncBusy}
+              onPress={() => saveServer()}
+            >
+              <Text style={styles.syncBtnText}>{t(lang, 'sync_save_server')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.syncAuthBtnAlt, syncBusy && styles.syncBtnDisabled]}
+              disabled={syncBusy}
+              onPress={handleSignup}
+            >
+              <Text style={styles.syncBtnTextAlt}>{t(lang, 'sync_signup')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.syncAuthBtnAlt, syncBusy && styles.syncBtnDisabled]}
+              disabled={syncBusy}
+              onPress={handleLogin}
+            >
+              <Text style={styles.syncBtnTextAlt}>{t(lang, 'sync_login')}</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.syncRow}>
+            <TouchableOpacity
+              style={[styles.syncBtn, syncBusy && styles.syncBtnDisabled]}
+              disabled={syncBusy}
+              onPress={handlePush}
+            >
+              <Text style={styles.syncBtnText}>↑ {t(lang, 'sync_push')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.syncBtn, syncBusy && styles.syncBtnDisabled]}
+              disabled={syncBusy}
+              onPress={handlePull}
+            >
+              <Text style={styles.syncBtnText}>↓ {t(lang, 'sync_pull')}</Text>
+            </TouchableOpacity>
+          </View>
+          {syncToken ? (
+            <Text style={styles.syncSignedIn}>
+              ✓ {t(lang, 'sync_signed_in')} {u.id}
+            </Text>
+          ) : null}
+          {lastSyncAt ? (
+            <Text style={styles.syncMeta}>
+              {t(lang, 'sync_last')} {lastSyncAt}
+            </Text>
+          ) : null}
+          {syncMsg ? (
+            <Text style={[styles.syncMsg, syncErr && styles.syncMsgErr]}>{syncMsg}</Text>
+          ) : null}
+        </Section>
+
         {/* Data Privacy & Offline Cache Diagnostics (§8.4) */}
         <Section title={t(lang, 'data_privacy')}>
           <Text style={styles.privacyText}>{t(lang, 'on_device')}</Text>
@@ -351,6 +547,47 @@ const styles = StyleSheet.create({
   langText: { fontSize: 12.5, fontWeight: '700', color: '#334155' },
   langTextActive: { color: '#fff' },
   privacyText: { fontSize: 12, color: '#475569', lineHeight: 18 },
+  syncInput: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 12.5,
+    color: '#0F172A',
+    marginTop: 10,
+  },
+  syncRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  syncBtn: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingVertical: 11,
+    alignItems: 'center',
+  },
+  syncBtnDisabled: { opacity: 0.5 },
+  syncBtnText: { color: '#fff', fontSize: 12, fontWeight: '800' },
+  syncAuthBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingVertical: 11,
+    alignItems: 'center',
+  },
+  syncAuthBtnAlt: {
+    flex: 1,
+    backgroundColor: '#EEF2FF',
+    borderRadius: 12,
+    paddingVertical: 11,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  syncBtnTextAlt: { color: colors.primary, fontSize: 12, fontWeight: '800' },
+  syncSignedIn: { fontSize: 11.5, fontWeight: '700', color: '#047857', marginTop: 10 },
+  syncMeta: { fontSize: 11, color: colors.textMuted, marginTop: 10 },
+  syncMsg: { fontSize: 12, color: '#047857', fontWeight: '700', marginTop: 6, lineHeight: 16 },
+  syncMsgErr: { color: '#B91C1C' },
   cacheCard: { backgroundColor: '#F8FAFC', borderRadius: 14, padding: 12, marginTop: 10, borderWidth: 1, borderColor: '#E2E8F0' },
   cacheRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
   cacheKey: { fontSize: 11.5, color: colors.textMuted },

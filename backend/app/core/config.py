@@ -29,6 +29,19 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     celery_broker_url: str = "amqp://guest:guest@localhost:5672//"
 
+    # Admin dashboard security ----
+    # Secret used to sign admin session cookies. MUST be set in production.
+    admin_secret: str | None = None
+    # Env-driven bootstrap admin (seeded on first startup when empty).
+    # No credentials are hardcoded in source.
+    admin_username: str = "admin"
+    admin_password: str | None = None
+    # Default admin lifetime (hours)
+    admin_session_hours: int = 12
+
+    # Mobile API bearer tokens (cross-device profile sync)
+    api_token_hours: int = 24 * 7  # 1 week
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 

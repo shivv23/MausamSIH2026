@@ -27,6 +27,7 @@ import {
   getCacheMetadata,
   setOfflineModeSimulated,
 } from './src/services/offlineCache';
+import { pullProfile } from './src/services/profileSync';
 
 export type Tab = 'home' | 'map' | 'myday' | 'ask' | 'alerts' | 'me';
 
@@ -189,6 +190,16 @@ export default function App() {
     setScenario('auto');
   };
 
+  /** Apply a profile pulled from the cloud (cross-device sync). */
+  const applySyncedProfile = async (p: UserProfile) => {
+    setProfile(p);
+    setLang(p.language);
+    setDemo(null);
+    setScenario('auto');
+    setTab('home');
+    await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(p));
+  };
+
   const redoOnboarding = () => {
     if (demo) {
       switchDemo(demo);
@@ -335,6 +346,7 @@ export default function App() {
           onSetScenario={setScenarioOverride}
           onOpenAdmin={() => setShowAdmin(true)}
           onOpenNotifSettings={() => setShowNotifSettings(true)}
+          onSyncPull={applySyncedProfile}
           isOffline={isOffline}
           staleness={staleness}
         />

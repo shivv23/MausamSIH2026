@@ -246,6 +246,27 @@ const dict = {
   learn_hint: ['Tap a card to see why & boost it · Dismiss to tune it down. Rankings adapt instantly.', 'कार्ड टैप करें देखने व बढ़ाने के लिए · हटाने से कम करें। क्रम तुरंत बदलता है।'] as const,
   learn_boosted: ['Card prioritized for you', 'आपके लिए कार्ड प्राथमिकता'] as const,
   learn_dismissed: ['Card lowered', 'कार्ड घटाया गया'] as const,
+  // cloud sync (cross-device profile restore)
+  sync_title: ['Cloud Backup & Sync', 'क्लाउड बैकअप व सिंक'] as const,
+  sync_desc: ['Backup your profile to the server, then restore it on another device with the same user ID.', 'अपनी प्रोफ़ाइल को सर्वर पर सहेजें, फिर उसी उपयोगकर्ता ID से दूसरे डिवाइस पर पुनः प्राप्त करें।'] as const,
+  sync_save_server: ['Save', 'सहेजें'] as const,
+  sync_push: ['Push', 'भेजें'] as const,
+  sync_pull: ['Pull', 'लाएँ'] as const,
+  sync_last: ['Last sync', 'पिछला सिंक'] as const,
+  sync_server_saved: ['Server URL saved', 'सर्वर URL सहेजा गया'] as const,
+  sync_pushed: ['✓ Profile uploaded to cloud', '✓ प्रोफ़ाइल क्लाउड पर भेजी गई'] as const,
+  sync_pulled: ['✓ Profile restored from cloud', '✓ प्रोफ़ाइल क्लाउड से पुनर्स्थापित'] as const,
+  sync_none: ['No backup found for this user ID yet', 'इस उपयोगकर्ता ID के लिए अभी कोई बैकअप नहीं'] as const,
+  sync_error: ['Sync failed', 'सिंक विफल'] as const,
+  sync_password: ['Password (6+ chars)', 'पासवर्ड (6+ अक्षर)'] as const,
+  sync_signup: ['Create account', 'खाता बनाएं'] as const,
+  sync_login: ['Log in', 'लॉग इन'] as const,
+  sync_signed_up: ['✓ Account created, signed in', '✓ खाता बनाया गया, साइन-इन है'] as const,
+  sync_logged_in: ['✓ Signed in', '✓ साइन-इन किया गया'] as const,
+  sync_signed_in: ['Signed in as', 'इस रूप में साइन-इन:'] as const,
+  sync_auth_required: ['Sign up or log in first to sync', 'सिंक करने के लिए पहले साइन-अप या लॉग-इन करें'] as const,
+  sync_password_short: ['Password must be at least 6 characters', 'पासवर्ड कम से कम 6 अक्षर का होना चाहिए'] as const,
+  sync_password_required: ['Enter a password first', 'पहले पासवर्ड दर्ज करें'] as const,
 } as const;
 
 type Key = keyof typeof dict;
