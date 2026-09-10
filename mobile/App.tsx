@@ -62,11 +62,11 @@ export default function App() {
   const [isOffline, setIsOffline] = useState(false);
   const [lastSyncIso, setLastSyncIso] = useState<string>(new Date().toISOString());
   const [providersState, setProvidersState] = useState<Provider[]>([
+    { name: 'IMD', status: 'ok', latencyMs: 142 },
+    { name: 'CPCB', status: 'ok', latencyMs: 188 },
+    { name: 'INCOIS', status: 'ok', latencyMs: 215 },
+    { name: 'ISRO', status: 'ok', latencyMs: 310 },
     { name: 'Open-Meteo', status: 'ok', latencyMs: 95 },
-    { name: 'CPCB', status: 'degraded', latencyMs: 188 },
-    { name: 'IMD', status: 'degraded', latencyMs: 142 },
-    { name: 'INCOIS', status: 'degraded', latencyMs: 215 },
-    { name: 'ISRO', status: 'degraded', latencyMs: 310 },
   ]);
 
   const setLang = (l: Lang) => {

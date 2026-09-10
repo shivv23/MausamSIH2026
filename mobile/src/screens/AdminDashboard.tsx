@@ -153,7 +153,6 @@ export default function AdminDashboard({
       polygon: activePolygon,
       issuedAt: new Date().toISOString(),
       validUntil: new Date(Date.now() + 1000 * 60 * 60 * 18).toISOString(),
-      simulated: true,
       actions: ['Avoid flood underpasses', 'Allow 30 min extra commute', 'Keep emergency phone charged'],
       actionsHi: ['जलभराव वाले अंडरपास से बचें', '30 मिनट अतिरिक्त समय रखें', 'फ़ोन चार्ज रखें'],
       affectedUsers: targetResolutions.map((tr) => ({
@@ -229,12 +228,6 @@ export default function AdminDashboard({
             </TouchableOpacity>
           </View>
         ) : (
-        <>
-        <View style={styles.simBanner}>
-          <Text style={styles.simBannerText}>
-            ⚠️ {L(lang, 'SIMULATION MODE — Sample bulletin, NOT a live IMD/CPCB advisory.', 'सिमुलेशन मोड — नमूना बुलेटिन, वास्तविक IMD/CPCB सलाह नहीं।')}
-          </Text>
-        </View>
         <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
           {/* Disaster Event Type Selection */}
           <View style={styles.card}>
@@ -441,7 +434,6 @@ export default function AdminDashboard({
             </View>
           </View>
         </ScrollView>
-        </>
         )}
       </SafeAreaView>
     </Modal>
@@ -475,14 +467,6 @@ const styles = StyleSheet.create({
   gateBox: { paddingTop: 48, alignItems: 'center' },
   gateIcon: { fontSize: 44, marginBottom: 8 },
   gateTitle: { fontSize: 18, fontWeight: '800', color: colors.text, marginBottom: 4 },
-  simBanner: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#FDE68A',
-  },
-  simBannerText: { fontSize: 11.5, fontWeight: '700', color: '#92400E', textAlign: 'center' },
   pinErr: { color: '#B91C1C', fontSize: 12, fontWeight: '700', marginTop: 8 },
   card: {
     backgroundColor: '#fff',

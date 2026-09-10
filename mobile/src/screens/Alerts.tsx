@@ -105,9 +105,7 @@ export default function Alerts({
                 </View>
               </View>
               <Text style={styles.alertSummary}>{activeAlert.body}</Text>
-              <Text style={styles.alertMeta}>
-                {activeAlert.simulated ? `SIMULATED · ${activeAlert.region} · Just Now` : `${activeAlert.source} · ${activeAlert.region} · Just Now`}
-              </Text>
+              <Text style={styles.alertMeta}>{activeAlert.source} · {activeAlert.region} · Just Now</Text>
             </View>
           </View>
         ) : null}

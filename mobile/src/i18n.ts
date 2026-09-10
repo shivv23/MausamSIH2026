@@ -151,7 +151,6 @@ const dict = {
   humidity_hi: ['High', 'उच्च'] as const,
   humidity_ok: ['OK', 'ठीक'] as const,
   push_official: ['Official text shown verbatim — no LLM redaction', 'आधिकारिक पाठ यथावत — कोई LLM संपादन नहीं'] as const,
-  push_simulated: ['Sample simulation — not an official advisory', 'नमूना सिमुलेशन — आधिकारिक सलाह नहीं'] as const,
   ar_sky_science: ['Sky science overlay', 'आकाश विज्ञान ओवरले'] as const,
   ar_cloud_type: ['Cloud identification', 'बादल पहचान'] as const,
   ar_uv_intensity: ['UV intensity', 'UV तीव्रता'] as const,

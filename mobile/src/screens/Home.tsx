@@ -194,9 +194,7 @@ export default function Home({
           >
             <View style={styles.pushRow}>
               <Text style={[styles.pushApp, { color: SEVERITY_COLOR[activeAlert.severity] }]}>
-                {activeAlert.simulated
-                  ? `SIMULATED · ${activeAlert.region.toUpperCase()}`
-                  : `${activeAlert.source.toUpperCase()} LIVE ALERT · ${activeAlert.region.toUpperCase()}`}
+                {activeAlert.source.toUpperCase()} LIVE ALERT · {activeAlert.region.toUpperCase()}
               </Text>
               <TouchableOpacity style={styles.viewMapPill} onPress={onOpenMap}>
                 <Text style={styles.viewMapText}>🗺️ View Geofence →</Text>
@@ -217,11 +215,7 @@ export default function Home({
                 </View>
               ))}
             </View>
-            <Text style={[styles.pushOfficial, activeAlert.simulated && styles.pushOfficialSim]}>
-              {activeAlert.simulated
-                ? '⚠️ ' + t(lang, 'push_simulated')
-                : '🔒 ' + t(lang, 'push_official')}
-            </Text>
+            <Text style={styles.pushOfficial}>🔒 {t(lang, 'push_official')}</Text>
           </View>
         ) : hp.scenario.warning ? (
           <View style={styles.pushCard}>
@@ -451,7 +445,6 @@ const styles = StyleSheet.create({
   pushActionPill: { backgroundColor: '#FEE2E2', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
   pushActionText: { color: '#B91C1C', fontSize: 11, fontWeight: '700' },
   pushOfficial: { marginTop: 10, fontSize: 10, fontWeight: '600', color: '#047857' },
-  pushOfficialSim: { color: '#B45309' },
   chipBar: { paddingRight: 16, gap: 8, paddingBottom: 4 },
   personaChip: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1 },
   chipActiveDark: { backgroundColor: colors.text, borderColor: colors.text },
