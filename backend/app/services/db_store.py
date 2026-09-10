@@ -73,6 +73,8 @@ async def upsert_profile(profile: UserProfile) -> None:
         await s.commit()
 
 
+# ---- Cross-device profile sync (opaque JSON blob per user) ------------------
+
 async def get_synced_profile(user_id: str) -> dict | None:
     async with get_session() as s:
         row = (await s.execute(select(UserRow).where(UserRow.id == user_id))).scalar_one_or_none()
@@ -81,13 +83,34 @@ async def get_synced_profile(user_id: str) -> dict | None:
         return dict(row.profile_jsonb)
 
 
+async def get_synced_updated_at(user_id: str) -> str | None:
+    async with get_session() as s:
+        row = (await s.execute(select(UserRow).where(UserRow.id == user_id))).scalar_one_or_none()
+        if row is None or row.profile_updated_at is None:
+            return None
+        return row.profile_updated_at.isoformat()
+
+
+async def delete_synced_profile(user_id: str) -> bool:
+    async with get_session() as s:
+        row = (await s.execute(select(UserRow).where(UserRow.id == user_id))).scalar_one_or_none()
+        if row is None:
+            return False
+        row.profile_jsonb = {}
+        row.profile_updated_at = None
+        await s.commit()
+        return True
+
+
 async def put_synced_profile(user_id: str, data: dict) -> None:
+    from datetime import datetime, timezone
     async with get_session() as s:
         row = (await s.execute(select(UserRow).where(UserRow.id == user_id))).scalar_one_or_none()
         if row is None:
             row = UserRow(id=user_id)
             s.add(row)
         row.profile_jsonb = data
+        row.profile_updated_at = datetime.now(timezone.utc)
         if "name" in data:
             row.display_name = data["name"]
         if "city" in data:

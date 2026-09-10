@@ -190,6 +190,8 @@ export interface DisasterAlertWithPolygon {
   validUntil: string;
   actions: string[];
   actionsHi: string[];
+  /** True when produced by the Admin Dashboard simulator — never a real agency bulletin. */
+  simulated?: boolean;
   affectedUsers?: Array<{
     userId: string;
     city: string;

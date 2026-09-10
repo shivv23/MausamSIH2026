@@ -31,7 +31,8 @@ async def get_profile(user_id: str,
     data = store.get_synced_profile(user_id)
     if data is None:
         raise HTTPException(404, "no synced profile for this user yet")
-    return ProfileSyncOut(user_id=user_id, profile=ProfileSync(**data), updated_at=None)
+    updated_at = store.get_synced_updated_at(user_id)
+    return ProfileSyncOut(user_id=user_id, profile=ProfileSync(**data), updated_at=updated_at)
 
 
 @router.put("/users/{user_id}/profile", response_model=ProfileSyncOut)
@@ -42,4 +43,15 @@ async def put_profile(user_id: str, body: ProfileSync,
     if body.id != user_id:
         raise HTTPException(400, "profile.id must equal the user id")
     store.put_synced_profile(user_id, body.model_dump())
-    return ProfileSyncOut(user_id=user_id, profile=body, updated_at=None)
+    return ProfileSyncOut(user_id=user_id, profile=body,
+                          updated_at=store.get_synced_updated_at(user_id))
+
+
+@router.delete("/users/{user_id}/profile")
+async def delete_profile(user_id: str,
+                         authorization: str | None = Header(default=None)) -> dict:
+    """Permanently remove this user's cloud backup (right-to-erasure)."""
+    _require_user(user_id, authorization)
+    if not store.delete_synced_profile(user_id):
+        raise HTTPException(404, "no synced profile for this user")
+    return {"ok": True, "deleted": user_id}

@@ -128,7 +128,27 @@ def get_synced_profile(user_id: str) -> dict | None:
     if _db_enabled():
         return _run_async(db_store.get_synced_profile, user_id)
     with _LOCK:
-        return dict(_SYNC.get(user_id) or {})
+        data = _SYNC.get(user_id)
+        return dict(data) if data else None
+
+
+def get_synced_updated_at(user_id: str) -> str | None:
+    """Return the ISO timestamp of the last profile push for a user."""
+    if _db_enabled():
+        return _run_async(db_store.get_synced_updated_at, user_id)
+    with _LOCK:
+        return _SYNC_AT.get(user_id)
+
+
+def delete_synced_profile(user_id: str) -> bool:
+    """Remove the synced mobile profile (and its timestamp) for a user."""
+    if _db_enabled():
+        return _run_async(db_store.delete_synced_profile, user_id)
+    with _LOCK:
+        had = user_id in _SYNC
+        _SYNC.pop(user_id, None)
+        _SYNC_AT.pop(user_id, None)
+        return had
 
 
 def put_synced_profile(user_id: str, data: dict) -> None:

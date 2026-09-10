@@ -57,6 +57,7 @@ class UserRow(Base):
     city: Mapped[str | None] = mapped_column(String(80), nullable=True)
     health: Mapped[dict] = mapped_column(JSONB, default=dict)
     profile_jsonb: Mapped[dict] = mapped_column(JSONB, default=dict)
+    profile_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
 

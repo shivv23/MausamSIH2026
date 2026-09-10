@@ -61,6 +61,16 @@ export async function loadHomepageFromOfflineCache(): Promise<{ hp: Homepage; ti
 }
 
 /**
+ * Wipe every offline cache key (homepage snapshot, warnings, radar, metadata).
+ * Used when the user redoes onboarding so the previous user's cached health /
+ * location data can never be resurrected on a shared device.
+ */
+export async function clearOfflineCache(): Promise<void> {
+  const keys = [CACHE_HOMEPAGE_KEY, CACHE_WARNINGS_KEY, CACHE_RADAR_KEY, CACHE_META_KEY];
+  await Promise.all(keys.map((k) => AsyncStorage.removeItem(k)));
+}
+
+/**
  * Get cache metadata and engine status
  */
 export async function getCacheMetadata(): Promise<CacheMetadata> {

@@ -26,8 +26,9 @@ import {
   calculateStalenessInfo,
   getCacheMetadata,
   setOfflineModeSimulated,
+  clearOfflineCache,
 } from './src/services/offlineCache';
-import { pullProfile } from './src/services/profileSync';
+import { pullProfile, setAuthToken } from './src/services/profileSync';
 
 export type Tab = 'home' | 'map' | 'myday' | 'ask' | 'alerts' | 'me';
 
@@ -61,11 +62,11 @@ export default function App() {
   const [isOffline, setIsOffline] = useState(false);
   const [lastSyncIso, setLastSyncIso] = useState<string>(new Date().toISOString());
   const [providersState, setProvidersState] = useState<Provider[]>([
-    { name: 'IMD', status: 'ok', latencyMs: 142 },
-    { name: 'CPCB', status: 'ok', latencyMs: 188 },
-    { name: 'INCOIS', status: 'ok', latencyMs: 215 },
-    { name: 'ISRO', status: 'ok', latencyMs: 310 },
     { name: 'Open-Meteo', status: 'ok', latencyMs: 95 },
+    { name: 'CPCB', status: 'degraded', latencyMs: 188 },
+    { name: 'IMD', status: 'degraded', latencyMs: 142 },
+    { name: 'INCOIS', status: 'degraded', latencyMs: 215 },
+    { name: 'ISRO', status: 'degraded', latencyMs: 310 },
   ]);
 
   const setLang = (l: Lang) => {
@@ -200,14 +201,19 @@ export default function App() {
     await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(p));
   };
 
-  const redoOnboarding = () => {
+  const redoOnboarding = async () => {
     if (demo) {
       switchDemo(demo);
       return;
     }
+    // Full session wipe: profile, this user's cloud token, and the offline
+    // cache (which embeds the previous user's health/location data).
+    const userId = profile?.id;
+    if (userId) await setAuthToken(userId, null);
+    await clearOfflineCache();
     setProfile(null);
     setTab('home');
-    AsyncStorage.removeItem(PROFILE_KEY);
+    await AsyncStorage.removeItem(PROFILE_KEY);
   };
 
   const setScenarioOverride = (s: ScenarioKey | 'auto') => {

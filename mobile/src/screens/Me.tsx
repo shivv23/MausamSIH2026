@@ -5,7 +5,7 @@ import type { Homepage, Lang, ScenarioKey, PersonaKey, UserProfile } from '../en
 import { CONDITIONS, DEMO_USERS, fmtTime, L, PERSONAS, SCENARIOS, SEVERITY_COLOR } from '../engine';
 import { t } from '../i18n';
 import { colors } from '../theme';
-import { getAuthToken, getSyncServer, loginAccount, pushProfile, pullProfile, registerAccount, setAuthToken, setSyncServer } from '../services/profileSync';
+import { deleteProfile, getAuthToken, getSyncServer, lastSyncedAt, loginAccount, logoutUser, pushProfile, pullProfile, registerAccount, setAuthToken, setSyncServer } from '../services/profileSync';
 import type { StalenessInfo } from '../types';
 
 interface Props {
@@ -48,8 +48,9 @@ export default function Me({
 
   React.useEffect(() => {
     getSyncServer().then((s) => setSyncServerState(s ?? 'http://localhost:8000'));
-    getAuthToken().then((tok) => setSyncTokenState(tok));
-  }, []);
+    getAuthToken(u.id).then((tok) => setSyncTokenState(tok));
+    lastSyncedAt(u.id).then((iso) => setLastSyncAt(iso ? new Date(iso).toLocaleTimeString() : ''));
+  }, [u.id]);
 
   const saveServer = async () => {
     await setSyncServer(syncServer);
@@ -58,7 +59,7 @@ export default function Me({
   };
 
   const rememberToken = async (token: string) => {
-    await setAuthToken(token);
+    await setAuthToken(u.id, token);
     setSyncTokenState(token);
     setSyncPassword('');
     setSyncErr(false);
@@ -134,14 +135,19 @@ export default function Me({
     setSyncBusy(true);
     setSyncMsg('');
     try {
-      const p = await pullProfile(u.id, syncServer, syncToken);
-      if (!p) {
+      const res = await pullProfile(u.id, syncServer, syncToken);
+      if (res.status === 'no_backup') {
         setSyncErr(false);
         setSyncMsg(t(lang, 'sync_none'));
         return;
       }
-      await onSyncPull?.(p);
-      setLastSyncAt(new Date().toLocaleTimeString());
+      if (res.status === 'stale') {
+        setSyncErr(false);
+        setSyncMsg(t(lang, 'sync_stale'));
+        return;
+      }
+      await onSyncPull?.(res.profile);
+      setLastSyncAt(new Date(res.updatedAt ?? Date.now()).toLocaleTimeString());
       setSyncErr(false);
       setSyncMsg(t(lang, 'sync_pulled'));
     } catch (e) {
@@ -150,6 +156,53 @@ export default function Me({
     } finally {
       setSyncBusy(false);
     }
+  };
+
+  const handleLogout = async () => {
+    setSyncBusy(true);
+    setSyncMsg('');
+    try {
+      await logoutUser(u.id);
+      setSyncTokenState(null);
+      setSyncPassword('');
+      setLastSyncAt('');
+      setSyncErr(false);
+      setSyncMsg(t(lang, 'sync_logged_out'));
+    } catch (e) {
+      setSyncErr(true);
+      setSyncMsg(t(lang, 'sync_error') + ': ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setSyncBusy(false);
+    }
+  };
+
+  const handleDeleteBackup = () => {
+    Alert.alert(
+      t(lang, 'delete_backup_title'),
+      t(lang, 'delete_backup_desc'),
+      [
+        { text: t(lang, 'cancel'), style: 'cancel' },
+        {
+          text: t(lang, 'delete'),
+          style: 'destructive',
+          onPress: async () => {
+            setSyncBusy(true);
+            setSyncMsg('');
+            try {
+              await deleteProfile(u.id, syncServer, syncToken);
+              setLastSyncAt('');
+              setSyncErr(false);
+              setSyncMsg(t(lang, 'sync_deleted_backup'));
+            } catch (e) {
+              setSyncErr(true);
+              setSyncMsg(t(lang, 'sync_error') + ': ' + (e instanceof Error ? e.message : String(e)));
+            } finally {
+              setSyncBusy(false);
+            }
+          },
+        },
+      ],
+    );
   };
   const locIcon: Record<string, string> = { home: '🏠', work: '💼', school: '🎒', farm: '🌱' };
   const currentDemoIndex = DEMO_USERS.findIndex((d) => d.user.id === u.id);
@@ -437,6 +490,22 @@ export default function Me({
               <Text style={styles.syncBtnText}>↓ {t(lang, 'sync_pull')}</Text>
             </TouchableOpacity>
           </View>
+          <View style={styles.syncRow}>
+            <TouchableOpacity
+              style={[styles.syncDangerBtn, (!syncToken || syncBusy) && styles.syncBtnDisabled]}
+              disabled={!syncToken || syncBusy}
+              onPress={handleLogout}
+            >
+              <Text style={styles.syncDangerText}>{t(lang, 'sync_logout')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.syncDangerBtn, (!syncToken || syncBusy) && styles.syncBtnDisabled]}
+              disabled={!syncToken || syncBusy}
+              onPress={handleDeleteBackup}
+            >
+              <Text style={styles.syncDangerText}>{t(lang, 'delete_backup')}</Text>
+            </TouchableOpacity>
+          </View>
           {syncToken ? (
             <Text style={styles.syncSignedIn}>
               ✓ {t(lang, 'sync_signed_in')} {u.id}
@@ -584,6 +653,16 @@ const styles = StyleSheet.create({
     borderColor: '#C7D2FE',
   },
   syncBtnTextAlt: { color: colors.primary, fontSize: 12, fontWeight: '800' },
+  syncDangerBtn: {
+    flex: 1,
+    backgroundColor: '#FEF2F2',
+    borderRadius: 12,
+    paddingVertical: 11,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  syncDangerText: { color: '#B91C1C', fontSize: 12, fontWeight: '800' },
   syncSignedIn: { fontSize: 11.5, fontWeight: '700', color: '#047857', marginTop: 10 },
   syncMeta: { fontSize: 11, color: colors.textMuted, marginTop: 10 },
   syncMsg: { fontSize: 12, color: '#047857', fontWeight: '700', marginTop: 6, lineHeight: 16 },

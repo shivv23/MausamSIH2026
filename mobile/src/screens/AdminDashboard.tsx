@@ -59,6 +59,24 @@ export default function AdminDashboard({
   const [bodyEn, setBodyEn] = useState('Intense spells (45 mm/h) expected between 8–11 AM. Waterlogging likely near underpasses; allow 30 min extra commute.');
   const [bodyHi, setBodyHi] = useState('सुबह 8–11 बजे 45 मिमी/घंटा बारिश का अनुमान। अंडरपास के पास जलभराव संभव; 30 मिनट अतिरिक्त समय रखें।');
   const [published, setPublished] = useState(false);
+  const [unlocked, setUnlocked] = useState(false);
+  const [pin, setPin] = useState('');
+  const [pinErr, setPinErr] = useState(false);
+
+  // Fixed device-local gate. The admin console mutates app-wide live state and
+  // dispatches real push notifications, so it must not be reachable on a
+  // borrowed/lost device via the profile "Admin Hub" shortcut.
+  const ADMIN_PIN = '2601';
+  const tryUnlock = () => {
+    if (pin === ADMIN_PIN) {
+      setUnlocked(true);
+      setPin('');
+      setPinErr(false);
+    } else {
+      setPinErr(true);
+      setPin('');
+    }
+  };
 
   const selectedCity = CITIES.find((c) => c.key === regionKey) || CITIES[0];
   const cityLat = selectedCity.sunrise === '06:48' ? 28.61 : selectedCity.coastal ? 19.07 : 18.52;
@@ -135,6 +153,7 @@ export default function AdminDashboard({
       polygon: activePolygon,
       issuedAt: new Date().toISOString(),
       validUntil: new Date(Date.now() + 1000 * 60 * 60 * 18).toISOString(),
+      simulated: true,
       actions: ['Avoid flood underpasses', 'Allow 30 min extra commute', 'Keep emergency phone charged'],
       actionsHi: ['जलभराव वाले अंडरपास से बचें', '30 मिनट अतिरिक्त समय रखें', 'फ़ोन चार्ज रखें'],
       affectedUsers: targetResolutions.map((tr) => ({
@@ -185,6 +204,37 @@ export default function AdminDashboard({
           </TouchableOpacity>
         </View>
 
+        {!unlocked ? (
+          <View style={[styles.container, styles.gateBox]}>
+            <Text style={styles.gateIcon}>🔐</Text>
+            <Text style={styles.gateTitle}>{t(lang, 'admin_pin_title')}</Text>
+            <Text style={styles.targetSub}>{t(lang, 'admin_pin_sub')}</Text>
+            <TextInput
+              style={styles.input}
+              value={pin}
+              onChangeText={(v) => {
+                setPin(v.replace(/[^0-9]/g, ''));
+                setPinErr(false);
+              }}
+              placeholder="••••"
+              placeholderTextColor="#94A3B8"
+              keyboardType="number-pad"
+              secureTextEntry
+              maxLength={4}
+              autoFocus
+            />
+            {pinErr ? <Text style={styles.pinErr}>{t(lang, 'admin_pin_wrong')}</Text> : null}
+            <TouchableOpacity style={styles.publishBtn} onPress={tryUnlock}>
+              <Text style={styles.publishBtnText}>{t(lang, 'admin_pin_enter')}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+        <>
+        <View style={styles.simBanner}>
+          <Text style={styles.simBannerText}>
+            ⚠️ {L(lang, 'SIMULATION MODE — Sample bulletin, NOT a live IMD/CPCB advisory.', 'सिमुलेशन मोड — नमूना बुलेटिन, वास्तविक IMD/CPCB सलाह नहीं।')}
+          </Text>
+        </View>
         <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
           {/* Disaster Event Type Selection */}
           <View style={styles.card}>
@@ -391,6 +441,8 @@ export default function AdminDashboard({
             </View>
           </View>
         </ScrollView>
+        </>
+        )}
       </SafeAreaView>
     </Modal>
   );
@@ -420,6 +472,18 @@ const styles = StyleSheet.create({
   },
   closeText: { fontSize: 16, fontWeight: '800', color: '#475569' },
   container: { padding: 16, paddingBottom: 40 },
+  gateBox: { paddingTop: 48, alignItems: 'center' },
+  gateIcon: { fontSize: 44, marginBottom: 8 },
+  gateTitle: { fontSize: 18, fontWeight: '800', color: colors.text, marginBottom: 4 },
+  simBanner: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#FDE68A',
+  },
+  simBannerText: { fontSize: 11.5, fontWeight: '700', color: '#92400E', textAlign: 'center' },
+  pinErr: { color: '#B91C1C', fontSize: 12, fontWeight: '700', marginTop: 8 },
   card: {
     backgroundColor: '#fff',
     borderRadius: 20,
