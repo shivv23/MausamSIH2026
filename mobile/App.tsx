@@ -7,7 +7,6 @@ import { NavigationContainer, createNavigationContainerRef } from '@react-naviga
 import type { LinkingOptions } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import NetInfo from '@react-native-community/netinfo';
-import * as Notifications from 'expo-notifications';
 import type { Activity, Card, Lang, LiveWeather, ScenarioKey, UserProfile, Provider } from './src/engine';
 import { buildHomepage, CITIES, DEMO_USERS, applyBehaviorSignal } from './src/engine';
 import { t } from './src/i18n';
@@ -26,7 +25,7 @@ import type { AppScreenDeps } from './src/navigation/MainTabs';
 import { APP_LINKING, TAB_ROUTE } from './src/navigation/types';
 import type { RootStackParamList, TabKey } from './src/navigation/types';
 import { ToastHost, showToast } from './src/components/Toast';
-import { registerForPushNotificationsAsync } from './src/services/notifications';
+import { registerForPushNotificationsAsync, loadNotificationsModule } from './src/services/notifications';
 import {
   saveHomepageToOfflineCache,
   loadHomepageFromOfflineCache,
@@ -213,6 +212,8 @@ export default function App() {
         const [token, server] = await Promise.all([getAuthToken(authedAccountId), getSyncServer()]);
         if (cancelled || !token || !server) return;
         await registerForPushNotificationsAsync();
+        const Notifications = await loadNotificationsModule();
+        if (cancelled || !Notifications) return;
         const push = await Notifications.getExpoPushTokenAsync();
         if (cancelled || !push?.data) return;
         await registerPushToken(
@@ -260,13 +261,22 @@ export default function App() {
   // to the alert centre so the message is never lost.
   useEffect(() => {
     if (!authedAccountId) return;
-    const sub = Notifications.addNotificationResponseReceivedListener(() => {
-      gotoTab('alerts');
-    });
-    Notifications.getLastNotificationResponseAsync().then((resp) => {
-      if (resp) gotoTab('alerts');
-    });
-    return () => sub.remove();
+    let cancelled = false;
+    let unsubscribeResponse: (() => void) | undefined;
+    (async () => {
+      const Notifications = await loadNotificationsModule();
+      if (cancelled || !Notifications) return;
+      unsubscribeResponse = Notifications.addNotificationResponseReceivedListener(() => {
+        gotoTab('alerts');
+      }).remove;
+      Notifications.getLastNotificationResponseAsync().then((resp) => {
+        if (!cancelled && resp) gotoTab('alerts');
+      });
+    })();
+    return () => {
+      cancelled = true;
+      if (unsubscribeResponse) unsubscribeResponse();
+    };
   }, [authedAccountId]);
 
   // fetch live weather whenever the active city changes

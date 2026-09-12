@@ -14,7 +14,7 @@ const IS_NOTIFICATIONS_AVAILABLE = Platform.OS !== 'web' && !isRunningInExpoGo()
 
 let notificationsModule: typeof ExpoNotifications | null = null;
 
-async function loadNotificationsModule(): Promise<typeof ExpoNotifications | null> {
+export async function loadNotificationsModule(): Promise<typeof ExpoNotifications | null> {
   if (!IS_NOTIFICATIONS_AVAILABLE) return null;
   if (!notificationsModule) {
     notificationsModule = await import('expo-notifications');
