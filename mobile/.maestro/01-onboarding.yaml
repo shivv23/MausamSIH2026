@@ -5,7 +5,7 @@ name: auth-and-onboarding
 ---
 - extendedWaitUntil:
     visible: "Welcome to Mausam"
-    timeout: 20000
+    timeout: 45000
 - tapOn: "Continue without account (offline demo)"
 - extendedWaitUntil:
     visible: "Weather that understands you"

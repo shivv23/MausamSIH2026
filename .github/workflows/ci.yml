@@ -115,6 +115,7 @@ jobs:
             curl -sfL -o /tmp/expo-go.apk "https://github.com/expo/expo-go-releases/releases/download/Expo-Go-57.0.9/Expo-Go-57.0.9.apk" && adb install -r /tmp/expo-go.apk
             adb shell am start -a android.intent.action.VIEW -d "exp://10.0.2.2:8081" && sleep 40
             adb devices; adb shell dumpsys window | grep -m1 mCurrentFocus || true; maestro --version
+            adb shell uiautomator dump /sdcard/ui.xml; adb shell cat /sdcard/ui.xml | grep -oE '(text|content-desc)="[^"]*"' | sort -u | head -60; adb shell screencap -p /sdcard/welcome.png; adb pull /sdcard/welcome.png /tmp/welcome.png
             cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro/01-onboarding.yaml --debug-output /tmp/maestro-offline
             cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro/02-myday.yaml --debug-output /tmp/maestro-offline
             cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro/03-alerts.yaml --debug-output /tmp/maestro-offline
@@ -123,3 +124,14 @@ jobs:
             cd mobile && adb shell am start -a android.intent.action.VIEW -d "exp://10.0.2.2:8081"
             cd mobile && sleep 30
             cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro-account/account-lifecycle.yaml --debug-output /tmp/maestro-account
+      - name: Upload e2e debug artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-debug
+          path: |
+            /tmp/welcome.png
+            /tmp/maestro-offline
+            /tmp/maestro-account
+            /tmp/expo.log
+          if-no-files-found: ignore
