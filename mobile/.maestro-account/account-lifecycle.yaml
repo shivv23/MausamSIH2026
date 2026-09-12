@@ -8,6 +8,9 @@ name: account-lifecycle
 # CI runs this suite after `adb shell pm clear host.exp.exponent` so the app
 # boots at the auth gate with no leftovers from the offline-demo suite.
 ---
+- tapOn:
+    text: "Continue"
+    optional: true
 - extendedWaitUntil:
     visible: "Welcome to Mausam"
     timeout: 30000
