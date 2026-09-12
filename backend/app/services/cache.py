@@ -72,6 +72,11 @@ async def cache_set(key: str, value: str) -> None:
     _store[key] = (time.monotonic(), value)
 
 
+def redis_available() -> bool:
+    """True when Redis has not proven itself broken (best-effort, for /metrics)."""
+    return not _redis_broken
+
+
 def clear() -> None:
     """Wipe the in-process cache + forget a dead Redis (test isolation)."""
     _store.clear()

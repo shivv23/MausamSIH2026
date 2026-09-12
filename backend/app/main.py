@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
@@ -11,6 +11,7 @@ from app.admin.router import router as admin_router
 from app.admin.security import hash_password
 from app.admin.templates import dashboard_html
 from app.core.config import settings
+from app.middleware.metrics import MetricsMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware, RateLimiter
 from app.services.logging_setup import configure_logging
 
@@ -66,27 +67,29 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
         lifespan=lifespan,
     )
-    # CORS: a comma-separated allow-list from settings. Native mobile clients
-    # send no Origin, so this primarily protects the browser-deployed demo and
-    # admin console. "*" is only the default for local dev.
+    # CORS: only browser clients send an Origin, so this affects the deployed
+    # web demo and admin console only; native mobile clients are unaffected.
+    # Secure default: an empty allow-list mounts NO CORS middleware, so any
+    # cross-origin browser call is rejected outright. Set MAUSAM_CORS_ORIGINS
+    # (comma-separated origins) for the web preview/admin console.
     origins = [o.strip() for o in settings.cors_allow_origins.split(",") if o.strip()]
     if origins:
-        allow_origins: list[str] = origins
-        allow_credentials = False
-    else:
-        allow_origins = ["*"]
-        allow_credentials = True
-        if settings.environment == "production":
-            logger.warning("MAUSAM_CORS_ORIGINS is empty in production; CORS is fully open")
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=allow_origins,
-        allow_credentials=allow_credentials,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=origins,
+            allow_credentials=False,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+    elif settings.environment == "production":
+        logger.warning(
+            "MAUSAM_CORS_ORIGINS is empty in production; browser access to this API is blocked (native app unaffected)"
+        )
     # Per-IP rate limiting confined to /api/v1/auth/* (anti credential-stuffing).
     app.add_middleware(RateLimitMiddleware)
+    # Metrics outermost: sees every request including rate-limited (429) and
+    # rejected cross-origin calls; excludes its own paths.
+    app.add_middleware(MetricsMiddleware)
     app.state.rate_limiter = RateLimiter(settings.rate_limit_max, settings.rate_limit_window_seconds)
     app.include_router(api_router)
     app.include_router(admin_router)
@@ -104,6 +107,24 @@ def create_app() -> FastAPI:
     @app.get("/admin", include_in_schema=False)
     async def admin_page() -> HTMLResponse:
         return HTMLResponse(dashboard_html())
+
+    @app.get("/metrics", include_in_schema=False, tags=["meta"])
+    async def metrics_endpoint() -> Response:
+        from app.db import database_available
+        from app.services import cache
+        from app.services import metrics as metrics_service
+
+        backend = "postgres" if database_available() else "memory"
+        extra = (
+            "# TYPE mausam_storage gauge\n"
+            f'mausam_storage{{backend="{backend}"}} 1\n'
+            "# TYPE mausam_redis_available gauge\n"
+            f"mausam_redis_available {1 if cache.redis_available() else 0}\n"
+        )
+        return Response(
+            metrics_service.render(extra),
+            media_type="text/plain; version=0.0.4; charset=utf-8",
+        )
 
     return app
 
