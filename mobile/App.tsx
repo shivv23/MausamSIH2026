@@ -117,8 +117,10 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        // 1. Register push notification permissions & channels
-        await registerForPushNotificationsAsync();
+        // 1. Register push notification permissions & channels (fire-and-forget;
+        //    never blocks first paint, and no-ops on web where push is unsupported)
+        setHydrated(true);
+        void registerForPushNotificationsAsync();
 
         // 2. Load stored profile & lang
         const [rawProfile, rawLang, meta] = await Promise.all([
@@ -193,6 +195,20 @@ export default function App() {
 
   /** Apply a profile pulled from the cloud (cross-device sync). */
   const applySyncedProfile = async (p: UserProfile) => {
+    setProfile(p);
+    setLang(p.language);
+    setDemo(null);
+    setScenario('auto');
+    setTab('home');
+    await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(p));
+  };
+
+  // Cross-device restore: the whole device session switches to another account.
+  // Wipe the previous user's offline cache (health/location data) before
+  // adopting the restored profile, and drop any admin-issued active alert.
+  const restoreAccountProfile = async (p: UserProfile) => {
+    await clearOfflineCache();
+    setActiveAlert(null);
     setProfile(p);
     setLang(p.language);
     setDemo(null);
@@ -353,6 +369,7 @@ export default function App() {
           onOpenAdmin={() => setShowAdmin(true)}
           onOpenNotifSettings={() => setShowNotifSettings(true)}
           onSyncPull={applySyncedProfile}
+          onRestoreAccount={restoreAccountProfile}
           isOffline={isOffline}
           staleness={staleness}
         />

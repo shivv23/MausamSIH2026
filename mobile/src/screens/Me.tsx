@@ -19,6 +19,8 @@ interface Props {
   onOpenAdmin?: () => void;
   onOpenNotifSettings?: () => void;
   onSyncPull?: (p: UserProfile) => void;
+  /** Switch the whole device session to another account (cross-device restore). */
+  onRestoreAccount?: (p: UserProfile) => void;
   isOffline?: boolean;
   staleness?: StalenessInfo;
 }
@@ -34,11 +36,13 @@ export default function Me({
   onOpenAdmin,
   onOpenNotifSettings,
   onSyncPull,
+  onRestoreAccount,
   isOffline,
   staleness,
 }: Props) {
   const u = hp.user;
   const [syncServer, setSyncServerState] = useState('');
+  const [syncAccountId, setSyncAccountId] = useState('');
   const [syncPassword, setSyncPassword] = useState('');
   const [syncToken, setSyncTokenState] = useState<string | null>(null);
   const [syncBusy, setSyncBusy] = useState(false);
@@ -50,6 +54,7 @@ export default function Me({
     getSyncServer().then((s) => setSyncServerState(s ?? 'http://localhost:8000'));
     getAuthToken(u.id).then((tok) => setSyncTokenState(tok));
     lastSyncedAt(u.id).then((iso) => setLastSyncAt(iso ? new Date(iso).toLocaleTimeString() : ''));
+    setSyncAccountId(u.id);
   }, [u.id]);
 
   const saveServer = async () => {
@@ -58,8 +63,8 @@ export default function Me({
     setSyncMsg(t(lang, 'sync_server_saved'));
   };
 
-  const rememberToken = async (token: string) => {
-    await setAuthToken(u.id, token);
+  const rememberToken = async (accountId: string, token: string) => {
+    await setAuthToken(accountId, token);
     setSyncTokenState(token);
     setSyncPassword('');
     setSyncErr(false);
@@ -71,12 +76,21 @@ export default function Me({
       setSyncMsg(t(lang, 'sync_password_short'));
       return;
     }
+    const accountId = syncAccountId.trim() || u.id;
     setSyncBusy(true);
     setSyncMsg('');
     try {
-      const token = await registerAccount(syncServer, u.id, syncPassword);
-      await rememberToken(token);
-      setSyncMsg(t(lang, 'sync_signed_up'));
+      const token = await registerAccount(syncServer, accountId, syncPassword);
+      await rememberToken(accountId, token);
+      if (accountId !== u.id) {
+        // Creating a brand-new account while signed into a different local
+        // profile: back the current profile up under the new id, then switch.
+        await pushProfile({ ...u, id: accountId }, syncServer, token);
+        await onRestoreAccount?.({ ...u, id: accountId });
+        setSyncMsg(t(lang, 'sync_switched_account'));
+      } else {
+        setSyncMsg(t(lang, 'sync_signed_up'));
+      }
     } catch (e) {
       setSyncErr(true);
       setSyncMsg(t(lang, 'sync_error') + ': ' + (e instanceof Error ? e.message : String(e)));
@@ -91,12 +105,30 @@ export default function Me({
       setSyncMsg(t(lang, 'sync_password_required'));
       return;
     }
+    const accountId = syncAccountId.trim() || u.id;
+    if (accountId !== u.id && !onRestoreAccount) {
+      setSyncErr(true);
+      setSyncMsg(t(lang, 'sync_restore_unsupported'));
+      return;
+    }
     setSyncBusy(true);
     setSyncMsg('');
     try {
-      const token = await loginAccount(syncServer, u.id, syncPassword);
-      await rememberToken(token);
-      setSyncMsg(t(lang, 'sync_logged_in'));
+      const token = await loginAccount(syncServer, accountId, syncPassword);
+      await rememberToken(accountId, token);
+      if (accountId !== u.id) {
+        const res = await pullProfile(accountId, syncServer, token);
+        if (res.status === 'profile') {
+          await onRestoreAccount?.(res.profile);
+          setSyncMsg(t(lang, 'sync_restored'));
+        } else if (res.status === 'no_backup') {
+          setSyncMsg(t(lang, 'sync_account_empty'));
+        } else {
+          setSyncMsg(t(lang, 'sync_stale'));
+        }
+      } else {
+        setSyncMsg(t(lang, 'sync_logged_in'));
+      }
     } catch (e) {
       setSyncErr(true);
       setSyncMsg(t(lang, 'sync_error') + ': ' + (e instanceof Error ? e.message : String(e)));
@@ -437,6 +469,18 @@ export default function Me({
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="url"
+          />
+          <TextInput
+            style={styles.syncInput}
+            value={syncAccountId}
+            onChangeText={(v) => {
+              setSyncAccountId(v.trim());
+              setSyncErr(false);
+            }}
+            placeholder={t(lang, 'sync_account_id')}
+            placeholderTextColor="#94A3B8"
+            autoCapitalize="none"
+            autoCorrect={false}
           />
           <TextInput
             style={styles.syncInput}
