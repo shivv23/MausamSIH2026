@@ -21,6 +21,8 @@ interface Props {
   onSyncPull?: (p: UserProfile) => void;
   /** Switch the whole device session to another account (cross-device restore). */
   onRestoreAccount?: (p: UserProfile) => void;
+  /** Fired after a successful local logout so the app returns to the auth gate. */
+  onSessionEnded?: () => void;
   isOffline?: boolean;
   staleness?: StalenessInfo;
 }
@@ -37,6 +39,7 @@ export default function Me({
   onOpenNotifSettings,
   onSyncPull,
   onRestoreAccount,
+  onSessionEnded,
   isOffline,
   staleness,
 }: Props) {
@@ -200,6 +203,7 @@ export default function Me({
       setLastSyncAt('');
       setSyncErr(false);
       setSyncMsg(t(lang, 'sync_logged_out'));
+      onSessionEnded?.();
     } catch (e) {
       setSyncErr(true);
       setSyncMsg(t(lang, 'sync_error') + ': ' + (e instanceof Error ? e.message : String(e)));

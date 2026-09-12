@@ -9,6 +9,9 @@ import { colors } from '../theme';
 interface Props {
   lang: Lang;
   onDone: (profile: UserProfile, cityKey: string) => void;
+  /** When set (user created/signed into an account first), the profile is
+   *  created under this account id instead of a name-derived one. */
+  fixedId?: string;
 }
 
 // default activities per persona so the My Day timeline is populated
@@ -21,7 +24,7 @@ const DEFAULT_ACTIVITIES: Partial<Record<PersonaKey, { type: ActivityType; label
   beach: [{ type: 'swim', label: 'Beach / swim', labelHi: 'समुद्र तट / तैराकी', time: '10:00' }],
 };
 
-export default function Onboarding({ lang, onDone }: Props) {
+export default function Onboarding({ lang, onDone, fixedId }: Props) {
   const [selected, setSelected] = useState<PersonaKey[]>([]);
   const [name, setName] = useState('');
   const [city, setCity] = useState('pune');
@@ -58,7 +61,7 @@ export default function Onboarding({ lang, onDone }: Props) {
       }
     });
     const profile: UserProfile = {
-      id: (name.trim() || userName).toLowerCase().replace(/\s+/g, '_') || 'user',
+      id: fixedId || (name.trim() || userName).toLowerCase().replace(/\s+/g, '_') || 'user',
       name: userName, nameHi: userNameHi, personas: selected,
       conditions, activities, locations: [{ type: 'home', label: 'Home' }],
       city: cityKey, language: lang, behaviorBias: {},

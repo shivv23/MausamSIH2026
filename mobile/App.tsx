@@ -7,6 +7,7 @@ import { buildHomepage, CITIES, DEMO_USERS, applyBehaviorSignal } from './src/en
 import { fetchLiveWeather, staleLiveWeather } from './src/live';
 import type { DisasterAlertWithPolygon } from './src/types';
 import Onboarding from './src/screens/Onboarding';
+import AuthGate from './src/screens/AuthGate';
 import Home from './src/screens/Home';
 import MapScreen from './src/screens/MapScreen';
 import MyDay from './src/screens/MyDay';
@@ -28,7 +29,7 @@ import {
   setOfflineModeSimulated,
   clearOfflineCache,
 } from './src/services/offlineCache';
-import { pullProfile, setAuthToken } from './src/services/profileSync';
+import { getAuthToken, getSyncServer, pullProfile, pushProfile, setAuthToken } from './src/services/profileSync';
 
 export type Tab = 'home' | 'map' | 'myday' | 'ask' | 'alerts' | 'me';
 
@@ -46,6 +47,10 @@ export default function App() {
   const [scenario, setScenario] = useState<ScenarioKey | 'auto'>('auto');
   const [tab, setTab] = useState<Tab>('home');
   const [hydrated, setHydrated] = useState(false);
+  // auth gate: which account id this device is signed in as ('' when logged out)
+  const [authedAccountId, setAuthedAccountId] = useState<string | null>(null);
+  const [pendingAccountId, setPendingAccountId] = useState<string | null>(null);
+  const [skipAuth, setSkipAuth] = useState(false);
   const [explaining, setExplaining] = useState<Card | null>(null);
   const [showAR, setShowAR] = useState(false);
   const [showSocial, setShowSocial] = useState(false);
@@ -119,7 +124,6 @@ export default function App() {
       try {
         // 1. Register push notification permissions & channels (fire-and-forget;
         //    never blocks first paint, and no-ops on web where push is unsupported)
-        setHydrated(true);
         void registerForPushNotificationsAsync();
 
         // 2. Load stored profile & lang
@@ -135,9 +139,11 @@ export default function App() {
           setLastSyncIso(meta.lastSyncIso);
         }
 
+        let storedProfile: UserProfile | null = null;
         if (rawProfile) {
           const parsed = JSON.parse(rawProfile);
           if (parsed && Array.isArray(parsed.personas) && parsed.personas.length && (parsed.id || parsed.name)) {
+            storedProfile = parsed;
             setProfile(parsed);
           } else {
             await AsyncStorage.removeItem(PROFILE_KEY);
@@ -146,9 +152,16 @@ export default function App() {
           // Check if cached homepage exists in WatermelonDB offline storage
           const cached = await loadHomepageFromOfflineCache();
           if (cached?.hp?.user) {
-            setProfile(cached.hp.user);
+            storedProfile = cached.hp.user;
+            setProfile(storedProfile);
             setLastSyncIso(cached.timestamp);
           }
+        }
+
+        // 3. Restore the signed-in account for this profile's id (if any token exists)
+        if (storedProfile) {
+          const token = await getAuthToken(storedProfile.id);
+          if (token) setAuthedAccountId(storedProfile.id);
         }
       } catch {
         // ignore corrupt storage
@@ -184,13 +197,52 @@ export default function App() {
     AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(d.user));
   };
 
-  const handleOnboardingDone = (p: UserProfile, cityKey: string) => {
+  const handleOnboardingDone = async (p: UserProfile, cityKey: string) => {
     setDemo(null);
     setProfile(p);
     setLang(p.language);
     setTab('home');
-    AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(p));
     setScenario('auto');
+    await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(p));
+    // If the user just authenticated, back this new profile up under the
+    // account id so it exists on the server from day one.
+    if (pendingAccountId) {
+      try {
+        const token = await getAuthToken(pendingAccountId);
+        const server = await getSyncServer();
+        if (token && server) await pushProfile(p, server, token);
+      } catch {
+        // offline / server down: skip auto-backup, user can Push manually
+      } finally {
+        setPendingAccountId(null);
+      }
+    }
+  };
+
+  /** Called by the AuthGate after a successful sign-in/create. */
+  const handleAuthed = async (restored: UserProfile | null, accountId: string) => {
+    setSkipAuth(false);
+    setAuthedAccountId(accountId);
+    if (restored) {
+      // signed in and the account has a cloud backup → go straight to Home
+      await clearOfflineCache();
+      setActiveAlert(null);
+      setProfile(restored);
+      setLang(restored.language);
+      setDemo(null);
+      setScenario('auto');
+      setTab('home');
+      await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(restored));
+    } else {
+      // account exists (or was created) but has no backup → build one via onboarding
+      setPendingAccountId(accountId);
+    }
+  };
+
+  /** Sign-out triggers the auth gate again on next render. */
+  const handleSessionEnded = () => {
+    setAuthedAccountId(null);
+    setTab('home');
   };
 
   /** Apply a profile pulled from the cloud (cross-device sync). */
@@ -227,6 +279,8 @@ export default function App() {
     const userId = profile?.id;
     if (userId) await setAuthToken(userId, null);
     await clearOfflineCache();
+    setAuthedAccountId(null);
+    setPendingAccountId(null);
     setProfile(null);
     setTab('home');
     await AsyncStorage.removeItem(PROFILE_KEY);
@@ -287,11 +341,30 @@ export default function App() {
     return <SafeAreaProvider>{null}</SafeAreaProvider>;
   }
 
+  // Not signed in → ask for sign up / sign in before anything else.
+  if (!authedAccountId && !skipAuth) {
+    return (
+      <SafeAreaProvider>
+        <StatusBar style="auto" />
+        <AuthGate
+          lang={lang}
+          defaultAccountId={profile?.id}
+          onAuthed={handleAuthed}
+          onSkip={() => setSkipAuth(true)}
+        />
+      </SafeAreaProvider>
+    );
+  }
+
   if (!profile) {
     return (
       <SafeAreaProvider>
         <StatusBar style="auto" />
-        <Onboarding lang={lang} onDone={handleOnboardingDone} />
+        <Onboarding
+          lang={lang}
+          onDone={handleOnboardingDone}
+          fixedId={authedAccountId ?? undefined}
+        />
       </SafeAreaProvider>
     );
   }
@@ -370,6 +443,7 @@ export default function App() {
           onOpenNotifSettings={() => setShowNotifSettings(true)}
           onSyncPull={applySyncedProfile}
           onRestoreAccount={restoreAccountProfile}
+          onSessionEnded={handleSessionEnded}
           isOffline={isOffline}
           staleness={staleness}
         />
