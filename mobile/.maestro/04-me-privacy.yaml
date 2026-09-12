@@ -1,0 +1,17 @@
+appId: host.exp.Exponent
+name: me-tab-and-data-privacy
+# Requires the auth-and-onboarding flow to be run first so Home is on screen.
+---
+- tapOn: "Me"
+- extendedWaitUntil:
+    visible: "Data & privacy"
+    timeout: 10000
+- assertVisible: "Cloud Backup & Sync"
+- assertVisible: "Stored locally in an encrypted SQLite database"
+- scrollUntilVisible:
+    element:
+      text: "Export my data"
+    direction: DOWN
+    timeout: 15000
+- tapOn: "Export my data"
+- assertVisible: "Data export prepared in your Downloads / shareable file"

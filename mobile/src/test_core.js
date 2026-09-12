@@ -54,7 +54,7 @@ function calculateStalenessInfo(syncIso, isOffline) {
     isStale,
     isCriticallyStale,
     ageMinutes,
-    offlineSource: isOffline ? 'watermelondb_cache' : 'network',
+    offlineSource: isOffline ? 'sqlite_cache' : 'network',
   };
 }
 
@@ -117,12 +117,12 @@ assert(shouldDeliverNotification(settings, 'orange', 'severeWarnings', 15).deliv
 const disabledFarm = { ...settings, categories: { ...settings.categories, farmingFrost: false } };
 assert(!shouldDeliverNotification(disabledFarm, 'yellow', 'farmingFrost', 12).deliver, 'Disabled farming category suppresses yellow farming advisory');
 
-// 3. WatermelonDB / Drift Offline Staleness
+// 3. SQLite Offline Staleness
 const t5m = new Date(Date.now() - 5 * 60 * 1000).toISOString();
 const t45m = new Date(Date.now() - 45 * 60 * 1000).toISOString();
 assert(!calculateStalenessInfo(t5m, false).isStale, '5 min online data is fresh (not stale)');
 assert(calculateStalenessInfo(t45m, false).isStale, '45 min data is marked stale (>15m threshold)');
-assert(calculateStalenessInfo(t5m, true).offlineSource === 'watermelondb_cache', 'Offline mode identifies watermelondb_cache source');
+assert(calculateStalenessInfo(t5m, true).offlineSource === 'sqlite_cache', 'Offline mode identifies sqlite_cache source');
 
 // 4. Ray-Casting Geofence Algorithm
 const punePoly = {

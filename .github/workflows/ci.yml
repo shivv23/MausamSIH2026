@@ -7,11 +7,25 @@ on:
 
 jobs:
   backend:
-    name: Backend lint + test
+    name: Backend lint + test + migrations
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: backend
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: mausam
+          POSTGRES_PASSWORD: mausam
+          POSTGRES_DB: mausam
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mausam -d mausam"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -25,3 +39,85 @@ jobs:
         run: ruff check app tests
       - name: Test (pytest)
         run: pytest
+      - name: Apply database migrations (alembic upgrade head)
+        env:
+          DATABASE_URL: postgresql+asyncpg://mausam:mausam@localhost:5432/mausam
+        run: alembic upgrade head
+
+  mobile:
+    name: Mobile typecheck + bundle
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Install deps
+        run: npm ci
+      - name: Typecheck (tsc)
+        run: npm run typecheck
+      - name: Validate app config (expo config)
+        run: npx expo config --type public > /tmp/expo_config.txt
+      - name: Web bundle check
+        run: npx expo export --platform web --output-dir /tmp/mausam-web-dist
+
+  maestro:
+    name: Maestro e2e (Android emulator)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: mobile-dev-inc/setup-maestro@v3
+        with:
+          install-tooling: true
+      - name: Install deps
+        run: npm ci
+      - name: Install backend deps
+        run: pip install -r ../backend/requirements.txt --quiet
+      - name: Start backend (for account-lifecycle suite)
+        run: |
+          cd ../backend
+          PUSH_ENABLED=0 DATABASE_ENABLED=false CELERY_ENABLED=false uvicorn app.main:app --host 0.0.0.0 --port 8000 &> /tmp/backend.log &
+          cd ../mobile
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8000/health && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8000/health || { cat /tmp/backend.log; exit 1; }
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 28
+          avd-name: dev28
+          script: |
+            cd mobile
+            adb wait-for-device
+            # Boot the dev server and wait until Expo/Metro answers.
+            (npx expo start --port 8081 > /tmp/expo.log 2>&1 &)
+            for i in $(seq 1 60); do
+              curl -sf http://127.0.0.1:8081/status >/dev/null 2>&1 && break
+              sleep 2
+            done
+            # Offline-demo suite: onboarding -> My Day -> Alerts -> Me/privacy.
+            maestro test .maestro --debug-output /tmp/maestro-offline
+            # Real-account suite must start at the auth gate: wipe Expo Go's
+            # data (drops the offline-demo session) and relaunch the project.
+            adb shell pm clear host.exp.Exponent
+            adb shell am start -a android.intent.action.VIEW -d "exp://10.0.2.2:8081"
+            sleep 20
+            maestro test .maestro-account --debug-output /tmp/maestro-account

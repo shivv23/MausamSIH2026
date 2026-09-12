@@ -1,8 +1,8 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import type { DisasterAlertWithPolygon, NotificationSettings, Severity } from '../types';
 import { DEFAULT_NOTIFICATION_SETTINGS } from '../types';
+import { kvGetJson, kvSetJson } from './db';
 
 const NOTIF_SETTINGS_KEY = '@mausam/notification_settings';
 
@@ -26,6 +26,9 @@ try {
  */
 export async function registerForPushNotificationsAsync(): Promise<boolean> {
   try {
+    // expo-notifications has no web push support and getPermissionsAsync can
+    // hang; web builds must never block first render on push setup.
+    if (Platform.OS === 'web') return false;
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {
         name: 'Mausam Weather Alerts',
@@ -61,9 +64,9 @@ export async function registerForPushNotificationsAsync(): Promise<boolean> {
  */
 export async function loadNotificationSettings(): Promise<NotificationSettings> {
   try {
-    const raw = await AsyncStorage.getItem(NOTIF_SETTINGS_KEY);
-    if (raw) {
-      return { ...DEFAULT_NOTIFICATION_SETTINGS, ...JSON.parse(raw) };
+    const settings = await kvGetJson<NotificationSettings>(NOTIF_SETTINGS_KEY);
+    if (settings) {
+      return { ...DEFAULT_NOTIFICATION_SETTINGS, ...settings };
     }
   } catch {
     // fallback
@@ -72,11 +75,11 @@ export async function loadNotificationSettings(): Promise<NotificationSettings> 
 }
 
 /**
- * Save user notification preferences
+ * Save user notification preferences (SQLite kv surface).
  */
 export async function saveNotificationSettings(settings: NotificationSettings): Promise<void> {
   try {
-    await AsyncStorage.setItem(NOTIF_SETTINGS_KEY, JSON.stringify(settings));
+    await kvSetJson(NOTIF_SETTINGS_KEY, settings);
   } catch (err) {
     console.error('[Notifications] Failed to save settings:', err);
   }

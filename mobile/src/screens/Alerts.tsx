@@ -181,7 +181,7 @@ export default function Alerts({
             </View>
           ))}
           <Text style={styles.fallback}>
-            {L(lang, 'Fallback chain: IMD → Open-Meteo → WatermelonDB Cache. Provenance kept per card.', 'फ़ॉलबैक: IMD → Open-Meteo → कैश। हर कार्ड में स्रोत।')}
+            {L(lang, 'Fallback chain: Live APIs → on-device SQLite cache. Provenance kept per card.', 'फ़ॉलबैक: लाइव API → डिवाइस पर SQLite कैश। हर कार्ड में स्रोत।')}
           </Text>
         </View>
       </ScrollView>

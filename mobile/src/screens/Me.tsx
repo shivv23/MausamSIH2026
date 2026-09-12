@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable, TextInput, Alert } from 'react-native';
+import { View, Text, Platform, StyleSheet, ScrollView, TouchableOpacity, Pressable, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { File, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import type { Homepage, Lang, ScenarioKey, PersonaKey, UserProfile } from '../engine';
 import { CONDITIONS, DEMO_USERS, fmtTime, L, PERSONAS, SCENARIOS, SEVERITY_COLOR } from '../engine';
 import { t } from '../i18n';
 import { colors } from '../theme';
-import { deleteProfile, getAuthToken, getSyncServer, lastSyncedAt, loginAccount, logoutUser, pushProfile, pullProfile, registerAccount, setAuthToken, setSyncServer } from '../services/profileSync';
+import { ackNotification, deleteAccount, deleteProfile, exportAccount, fetchNotifications, getAuthToken, getSyncServer, lastSyncedAt, loginAccount, logoutAllDevices, logoutUser, pushProfile, pullProfile, registerAccount, setAuthToken, setSyncServer, type ServerNotification } from '../services/profileSync';
+import { databaseEngineLabel, getConsent, kvSetJson, listArchivedNotifications, markArchiveRead, snapshotMetadata } from '../services/db';
+import { checkForUpdates, reloadUpdate } from '../services/updates';
 import type { StalenessInfo } from '../types';
 
 interface Props {
@@ -52,12 +56,34 @@ export default function Me({
   const [syncMsg, setSyncMsg] = useState('');
   const [syncErr, setSyncErr] = useState(false);
   const [lastSyncAt, setLastSyncAt] = useState('');
+  const [notifs, setNotifs] = useState<ServerNotification[]>([]);
+  const [notifsUnread, setNotifsUnread] = useState(0);
+  const [notifsBusy, setNotifsBusy] = useState(false);
+  const [notifsMode, setNotifsMode] = useState<'server' | 'local' | 'none'>('none');
+  const [dbMeta, setDbMeta] = useState<{ engine: string; totalSnapshots: number }>({ engine: '…', totalSnapshots: 0 });
+  const [consentAt, setConsentAt] = useState('');
 
   React.useEffect(() => {
     getSyncServer().then((s) => setSyncServerState(s ?? 'http://localhost:8000'));
-    getAuthToken(u.id).then((tok) => setSyncTokenState(tok));
+    getAuthToken(u.id).then((tok) => {
+      setSyncTokenState(tok);
+      if (tok) {
+        getSyncServer().then((s) => {
+          if (!s) return;
+          fetchNotifications(s, u.id, tok)
+            .then((res) => {
+              setNotifsUnread(res.unread);
+              mergeNotifs(res.items);
+            })
+            .catch(() => undefined);
+        });
+      }
+    });
     lastSyncedAt(u.id).then((iso) => setLastSyncAt(iso ? new Date(iso).toLocaleTimeString() : ''));
     setSyncAccountId(u.id);
+    loadNotifs();
+    snapshotMetadata().then(setDbMeta);
+    getConsent(u.id).then((c) => setConsentAt(c ? new Date(c.acceptedAt).toLocaleString() : ''));
   }, [u.id]);
 
   const saveServer = async () => {
@@ -83,12 +109,12 @@ export default function Me({
     setSyncBusy(true);
     setSyncMsg('');
     try {
-      const token = await registerAccount(syncServer, accountId, syncPassword);
-      await rememberToken(accountId, token);
+      const session = await registerAccount(syncServer, accountId, syncPassword);
+      await rememberToken(accountId, session.token);
       if (accountId !== u.id) {
         // Creating a brand-new account while signed into a different local
         // profile: back the current profile up under the new id, then switch.
-        await pushProfile({ ...u, id: accountId }, syncServer, token);
+        await pushProfile({ ...u, id: accountId }, syncServer, session.token);
         await onRestoreAccount?.({ ...u, id: accountId });
         setSyncMsg(t(lang, 'sync_switched_account'));
       } else {
@@ -117,10 +143,10 @@ export default function Me({
     setSyncBusy(true);
     setSyncMsg('');
     try {
-      const token = await loginAccount(syncServer, accountId, syncPassword);
-      await rememberToken(accountId, token);
+      const session = await loginAccount(syncServer, accountId, syncPassword);
+      await rememberToken(accountId, session.token);
       if (accountId !== u.id) {
-        const res = await pullProfile(accountId, syncServer, token);
+        const res = await pullProfile(accountId, syncServer, session.token);
         if (res.status === 'profile') {
           await onRestoreAccount?.(res.profile);
           setSyncMsg(t(lang, 'sync_restored'));
@@ -240,6 +266,185 @@ export default function Me({
       ],
     );
   };
+  const loadNotifs = async () => {
+    const rows = await listArchivedNotifications();
+    setNotifs(rows.map((r) => ({
+      id: r.id,
+      alertId: r.alertId,
+      severity: (r.severity as ServerNotification['severity']) ?? 'yellow',
+      eventType: r.eventType,
+      headline: r.headline,
+      body: r.body,
+      region: r.region,
+      read: r.read,
+      createdAt: r.createdAt,
+    })));
+    setNotifsMode((prev) => (prev === 'server' ? prev : 'local'));
+  };
+
+  const mergeNotifs = (items: ServerNotification[]) => {
+    setNotifs((prev) => {
+      const map = new Map(prev.map((n) => [n.id, n]));
+      for (const n of items) {
+        const local = map.get(n.id);
+        map.set(n.id, { ...n, read: n.read || local?.read === true });
+      }
+      return Array.from(map.values()).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    });
+    setNotifsMode('server');
+  };
+
+  const refreshNotifs = async () => {
+    setNotifsBusy(true);
+    setSyncMsg('');
+    try {
+      if (syncToken) {
+        const res = await fetchNotifications(syncServer, u.id, syncToken);
+        setNotifsUnread(res.unread);
+        mergeNotifs(res.items);
+      } else {
+        await loadNotifs();
+      }
+    } catch (e) {
+      setSyncErr(true);
+      setSyncMsg(t(lang, 'sync_error') + ': ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setNotifsBusy(false);
+    }
+  };
+
+  const ackNotif = async (n: ServerNotification) => {
+    setNotifs((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
+    setNotifsUnread((c) => (n.read ? c : Math.max(0, c - 1)));
+    await markArchiveRead(n.id).catch(() => undefined);
+    if (syncToken) {
+      ackNotification(syncServer, u.id, syncToken, n.id).catch(() => undefined);
+    }
+  };
+
+  const handleLogoutAll = async () => {
+    setSyncBusy(true);
+    setSyncMsg('');
+    try {
+      if (syncToken) {
+        await logoutAllDevices(syncServer, u.id, syncToken);
+      }
+      await logoutUser(u.id);
+      setSyncTokenState(null);
+      setSyncPassword('');
+      setLastSyncAt('');
+      setSyncErr(false);
+      setSyncMsg(t(lang, 'auth_logged_out_all'));
+      onSessionEnded?.();
+    } catch (e) {
+      setSyncErr(true);
+      setSyncMsg(t(lang, 'sync_error') + ': ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setSyncBusy(false);
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      t(lang, 'auth_delete_confirm_title'),
+      t(lang, 'auth_delete_confirm_desc'),
+      [
+        { text: t(lang, 'cancel'), style: 'cancel' },
+        {
+          text: t(lang, 'auth_delete_account'),
+          style: 'destructive',
+          onPress: async () => {
+            setSyncBusy(true);
+            setSyncMsg('');
+            try {
+              if (syncToken) {
+                await deleteAccount(syncServer, u.id, syncToken);
+              }
+              await logoutUser(u.id);
+              setSyncTokenState(null);
+              setLastSyncAt('');
+              setSyncErr(false);
+              setSyncMsg(t(lang, 'auth_deleted'));
+              onSessionEnded?.();
+            } catch (e) {
+              setSyncErr(true);
+              setSyncMsg(t(lang, 'sync_error') + ': ' + (e instanceof Error ? e.message : String(e)));
+            } finally {
+              setSyncBusy(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleExport = async () => {
+    setSyncBusy(true);
+    setSyncMsg('');
+    try {
+      const local = {
+        exported_at: new Date().toISOString(),
+        profile: u,
+        consent_at: consentAt,
+        on_device_db: databaseEngineLabel(),
+        notifications: notifs.length,
+      };
+      // Portability: merge the server-side dump (profile, inbox, push
+      // registrations) when the user is signed in, so the file is complete.
+      let cloud: unknown = null;
+      if (syncToken) {
+        try {
+          cloud = await exportAccount(u.id, syncServer, syncToken);
+        } catch {
+          cloud = null; // offline / server down → local-only export still works
+        }
+      }
+      const payload = cloud ? { ...(cloud as object), local_device: local } : local;
+      await kvSetJson('@mausam/export', payload);
+      const json = JSON.stringify(payload, null, 2);
+      if (Platform.OS !== 'web' && (await Sharing.isAvailableAsync())) {
+        const file = new File(Paths.document, `mausam-export-${u.id}-${Date.now()}.json`);
+        file.create({ overwrite: true, intermediates: true });
+        file.write(json);
+        setSyncMsg(t(lang, 'privacy_exported'));
+        await Sharing.shareAsync(file.uri, { mimeType: 'application/json', dialogTitle: t(lang, 'privacy_export') });
+      } else {
+        setSyncMsg(t(lang, 'privacy_exported'));
+      }
+      setSyncErr(false);
+    } catch (e) {
+      setSyncErr(true);
+      setSyncMsg(t(lang, 'sync_error') + ': ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setSyncBusy(false);
+    }
+  };
+  const handleCheckUpdate = async () => {
+    setSyncBusy(true);
+    setSyncMsg(t(lang, 'update_checking'));
+    try {
+      const result = await checkForUpdates(false);
+      if (result === 'updated') {
+        setSyncMsg(t(lang, 'update_ready'));
+        await reloadUpdate();
+      } else if (result === 'none') {
+        setSyncErr(false);
+        setSyncMsg(t(lang, 'update_ok'));
+      } else if (result === 'unavailable') {
+        setSyncErr(false);
+        setSyncMsg(t(lang, 'update_unavailable'));
+      } else {
+        setSyncErr(true);
+        setSyncMsg(t(lang, 'sync_error'));
+      }
+    } catch (e) {
+      setSyncErr(true);
+      setSyncMsg(t(lang, 'sync_error') + ': ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setSyncBusy(false);
+    }
+  };
+
   const locIcon: Record<string, string> = { home: '🏠', work: '💼', school: '🎒', farm: '🌱' };
   const currentDemoIndex = DEMO_USERS.findIndex((d) => d.user.id === u.id);
   const simulated = scenario !== 'auto';
@@ -569,13 +774,84 @@ export default function Me({
           ) : null}
         </Section>
 
+        {/* Account Security */}
+        {syncToken ? (
+          <Section title={t(lang, 'auth_title')}>
+            <Text style={styles.privacyText}>{t(lang, 'auth_recovery_note')}</Text>
+            <View style={styles.syncRow}>
+              <TouchableOpacity
+                style={[styles.syncAuthBtnAlt, syncBusy && styles.syncBtnDisabled]}
+                disabled={syncBusy}
+                onPress={handleLogoutAll}
+              >
+                <Text style={styles.syncBtnTextAlt}>{t(lang, 'auth_logout_all')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.syncDangerBtn, syncBusy && styles.syncBtnDisabled]}
+                disabled={syncBusy}
+                onPress={handleDeleteAccount}
+              >
+                <Text style={styles.syncDangerText}>{t(lang, 'auth_delete_account')}</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.privacyText}>{t(lang, 'auth_delete_account_desc')}</Text>
+          </Section>
+        ) : null}
+
+        {/* Alert Centre — durable inbox */}
+        <Section title={t(lang, 'ncentre_title')}>
+          <Text style={styles.privacyText}>{t(lang, 'ncentre_sub')}</Text>
+          <View style={styles.syncRow}>
+            <TouchableOpacity
+              style={[styles.syncBtn, notifsBusy && styles.syncBtnDisabled]}
+              disabled={notifsBusy}
+              onPress={refreshNotifs}
+            >
+              <Text style={styles.syncBtnText}>
+                {notifsBusy ? t(lang, 'auth_working') : '↻ ' + t(lang, 'ncentre_synced')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          {notifsMode === 'local' ? (
+            <Text style={styles.syncMeta}>{t(lang, 'ncentre_offline')}</Text>
+          ) : notifs.length > 0 ? (
+            <Text style={styles.syncMeta}>
+              {notifsUnread > 0 ? `${notifsUnread} ${t(lang, 'ncentre_unread')}` : t(lang, 'ncentre_ok')}
+            </Text>
+          ) : null}
+          {notifs.length === 0 ? (
+            <Text style={styles.noneText}>{t(lang, 'ncentre_empty')}</Text>
+          ) : (
+            notifs.slice(0, 8).map((n) => (
+              <View key={n.id} style={[styles.notifRow, !n.read && styles.notifRowUnread]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.notifTitle, { color: SEVERITY_COLOR[n.severity] ?? '#1E293B' }]}>
+                    {n.severity.toUpperCase()} · {n.headline}
+                  </Text>
+                  <Text style={styles.notifBody}>{n.body}</Text>
+                  <Text style={styles.syncMeta}>
+                    {n.region} · {new Date(n.createdAt).toLocaleString()}
+                  </Text>
+                </View>
+                {!n.read ? (
+                  <TouchableOpacity style={styles.notifAck} onPress={() => ackNotif(n)}>
+                    <Text style={styles.notifAckText}>{t(lang, 'ncentre_ack')}</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <Text style={styles.notifAckDone}>✓</Text>
+                )}
+              </View>
+            ))
+          )}
+        </Section>
+
         {/* Data Privacy & Offline Cache Diagnostics (§8.4) */}
         <Section title={t(lang, 'data_privacy')}>
           <Text style={styles.privacyText}>{t(lang, 'on_device')}</Text>
           <View style={styles.cacheCard}>
             <View style={styles.cacheRow}>
               <Text style={styles.cacheKey}>Offline Storage Engine:</Text>
-              <Text style={styles.cacheVal}>WatermelonDB / Drift v3.2</Text>
+              <Text style={styles.cacheVal}>{dbMeta.engine}</Text>
             </View>
             <View style={styles.cacheRow}>
               <Text style={styles.cacheKey}>Cache Freshness Status:</Text>
@@ -588,9 +864,31 @@ export default function Me({
               <Text style={styles.cacheVal}>Point-in-Polygon (Ray-Casting)</Text>
             </View>
             <View style={styles.cacheRow}>
-              <Text style={styles.cacheKey}>Database Footprint:</Text>
-              <Text style={styles.cacheVal}>1.4 MB · 0 network leak</Text>
+              <Text style={styles.cacheKey}>Snapshots On-Device:</Text>
+              <Text style={styles.cacheVal}>{dbMeta.totalSnapshots}</Text>
             </View>
+          </View>
+          <Text style={styles.privacyText}>{t(lang, 'privacy_stored_locally')}</Text>
+          <Text style={styles.privacyMeta}>{t(lang, 'privacy_retention')}</Text>
+          <Text style={styles.privacyMeta}>{t(lang, 'privacy_permissions')}</Text>
+          {consentAt ? (
+            <Text style={styles.syncMeta}>✓ {t(lang, 'privacy_accepted')} · {consentAt}</Text>
+          ) : null}
+          <View style={styles.syncRow}>
+            <TouchableOpacity
+              style={[styles.syncBtn, syncBusy && styles.syncBtnDisabled]}
+              disabled={syncBusy}
+              onPress={handleExport}
+            >
+              <Text style={styles.syncBtnText}>⬇️ {t(lang, 'privacy_export')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.syncBtn, syncBusy && styles.syncBtnDisabled]}
+              disabled={syncBusy}
+              onPress={handleCheckUpdate}
+            >
+              <Text style={styles.syncBtnText}>🔄 {t(lang, 'update_check')}</Text>
+            </TouchableOpacity>
           </View>
         </Section>
 
@@ -664,6 +962,7 @@ const styles = StyleSheet.create({
   langText: { fontSize: 12.5, fontWeight: '700', color: '#334155' },
   langTextActive: { color: '#fff' },
   privacyText: { fontSize: 12, color: '#475569', lineHeight: 18 },
+  privacyMeta: { fontSize: 12, color: '#64748B', lineHeight: 17, marginTop: 6 },
   syncInput: {
     backgroundColor: '#F8FAFC',
     borderRadius: 12,
@@ -719,6 +1018,13 @@ const styles = StyleSheet.create({
   cacheRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
   cacheKey: { fontSize: 11.5, color: colors.textMuted },
   cacheVal: { fontSize: 11.5, fontWeight: '700', color: '#1E293B' },
+  notifRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#F1F5F9', marginTop: 8 },
+  notifRowUnread: { backgroundColor: '#F8FAFC', borderRadius: 10, paddingHorizontal: 8 },
+  notifTitle: { fontSize: 12, fontWeight: '800', color: '#1E293B' },
+  notifBody: { fontSize: 11.5, color: '#475569', marginTop: 2, lineHeight: 16 },
+  notifAck: { backgroundColor: colors.primary, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, marginTop: 2 },
+  notifAckText: { color: '#fff', fontSize: 10.5, fontWeight: '800' },
+  notifAckDone: { color: '#059669', fontSize: 15, fontWeight: '800', marginTop: 6 },
   redoBtn: { backgroundColor: '#fff', borderRadius: 16, paddingVertical: 14, alignItems: 'center', marginTop: 18, borderWidth: 1, borderColor: '#E2E8F0' },
   redoText: { fontSize: 12.5, fontWeight: '700', color: '#475569' },
   version: { textAlign: 'center', fontSize: 10, color: colors.textSoft, marginTop: 12 },

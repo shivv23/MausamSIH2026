@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme';
-import type { Tab } from '../../App';
+import type { TabKey as Tab } from '../navigation/types';
 import { t } from '../i18n';
 import type { Lang } from '../engine';
 

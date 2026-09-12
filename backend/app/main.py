@@ -4,7 +4,6 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.api import api_router
 from app.admin import store
@@ -12,7 +11,10 @@ from app.admin.router import router as admin_router
 from app.admin.security import hash_password
 from app.admin.templates import dashboard_html
 from app.core.config import settings
+from app.middleware.rate_limit import RateLimitMiddleware, RateLimiter
+from app.services.logging_setup import configure_logging
 
+configure_logging()
 logger = logging.getLogger("mausam")
 
 
@@ -64,13 +66,28 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
         lifespan=lifespan,
     )
+    # CORS: a comma-separated allow-list from settings. Native mobile clients
+    # send no Origin, so this primarily protects the browser-deployed demo and
+    # admin console. "*" is only the default for local dev.
+    origins = [o.strip() for o in settings.cors_allow_origins.split(",") if o.strip()]
+    if origins:
+        allow_origins: list[str] = origins
+        allow_credentials = False
+    else:
+        allow_origins = ["*"]
+        allow_credentials = True
+        if settings.environment == "production":
+            logger.warning("MAUSAM_CORS_ORIGINS is empty in production; CORS is fully open")
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # tighten in production
-        allow_credentials=True,
+        allow_origins=allow_origins,
+        allow_credentials=allow_credentials,
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    # Per-IP rate limiting confined to /api/v1/auth/* (anti credential-stuffing).
+    app.add_middleware(RateLimitMiddleware)
+    app.state.rate_limiter = RateLimiter(settings.rate_limit_max, settings.rate_limit_window_seconds)
     app.include_router(api_router)
     app.include_router(admin_router)
 

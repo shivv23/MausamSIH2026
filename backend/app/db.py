@@ -59,6 +59,39 @@ async def probe() -> bool:
         return False
 
 
+def ensure_probed() -> None:
+    """Probe the database once, whatever the entry point.
+
+    ASGI apps probe in their lifespan, but Celery workers and sync store
+    helpers never run that hook; this makes ``store`` decisions (memory vs
+    asyncpg) deterministic even when no HTTP request ever fired — e.g. running
+    a single pytest file, or a worker that writes inbox entries.
+    """
+    global _health_checked, _db_available  # noqa: PLW0603
+    if _health_checked:
+        return
+    if not database_enabled():
+        _health_checked = True
+        _db_available = False
+        return
+    import asyncio
+    import threading
+
+    out: dict[str, bool] = {}
+
+    def _runner() -> None:
+        try:
+            out["ok"] = asyncio.run(probe())
+        except Exception:  # noqa: BLE001 - probe must never raise
+            out["ok"] = False
+
+    thread = threading.Thread(target=_runner, daemon=True)
+    thread.start()
+    thread.join()
+    _db_available = bool(out.get("ok"))
+    _health_checked = True
+
+
 def get_session() -> AsyncSession:
     """Open a session; raises RuntimeError when the database is unavailable."""
     if not database_available():

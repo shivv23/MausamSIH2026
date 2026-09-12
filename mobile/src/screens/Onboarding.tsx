@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Location from 'expo-location';
 import type { Activity, ActivityType, PersonaKey, UserProfile, Lang } from '../engine';
 import { CITIES, CONDITIONS, PERSONAS } from '../engine';
 import { t } from '../i18n';
 import { colors } from '../theme';
+import { saveConsent } from '../services/db';
 
 interface Props {
   lang: Lang;
@@ -13,6 +15,8 @@ interface Props {
    *  created under this account id instead of a name-derived one. */
   fixedId?: string;
 }
+
+type Consent = 'none' | 'profile' | 'notifications' | 'both';
 
 // default activities per persona so the My Day timeline is populated
 const DEFAULT_ACTIVITIES: Partial<Record<PersonaKey, { type: ActivityType; label: string; labelHi: string; time: string }[]>> = {
@@ -29,6 +33,49 @@ export default function Onboarding({ lang, onDone, fixedId }: Props) {
   const [name, setName] = useState('');
   const [city, setCity] = useState('pune');
   const [conditions, setConditions] = useState<string[]>([]);
+  const [consent, setConsent] = useState<Consent>('both');
+  const [detecting, setDetecting] = useState(false);
+
+  /** One-shot, consent-first city detection. Falls back to manual entry on
+   * any denial/error; never tracks location afterwards. */
+  const detectCity = async () => {
+    try {
+      setDetecting(true);
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(t(lang, 'ob_detect_city'), t(lang, 'ob_detect_denied'));
+        return;
+      }
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const { latitude, longitude } = pos.coords;
+      if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+        Alert.alert(t(lang, 'ob_detect_city'), t(lang, 'ob_detect_fail'));
+        return;
+      }
+      let nearest = CITIES[0];
+      let best = Number.POSITIVE_INFINITY;
+      for (const c of CITIES) {
+        const d = haversineKm(latitude, longitude, c.lat, c.lon);
+        if (d < best) { best = d; nearest = c; }
+      }
+      if (best > 350) {
+        // outside India's coverage → keep manual, tell the user clearly
+        Alert.alert(t(lang, 'ob_detect_city'), t(lang, 'ob_detect_fail'));
+        return;
+      }
+      setCity(nearest.name);
+      Alert.alert(t(lang, 'ob_detect_city'), t(lang, 'ob_detect_nearby').replace('{city}', L(lang, nearest.name, nearest.nameHi)));
+    } catch {
+      Alert.alert(t(lang, 'ob_detect_city'), t(lang, 'ob_detect_fail'));
+    } finally {
+      setDetecting(false);
+    }
+  };
+
+  const toggleConsent = (c: Exclude<Consent, 'none'>): void => {
+    const next = consent === c ? 'none' : consent === 'both' ? (c === 'profile' ? 'notifications' : 'profile') : c === 'profile' ? 'both' : 'both';
+    setConsent(next);
+  };
 
   const toggle = (key: PersonaKey) => {
     setSelected((prev) => {
@@ -66,6 +113,17 @@ export default function Onboarding({ lang, onDone, fixedId }: Props) {
       conditions, activities, locations: [{ type: 'home', label: 'Home' }],
       city: cityKey, language: lang, behaviorBias: {},
     };
+    if (consent === 'none') {
+      Alert.alert(t(lang, 'privacy_consent_title'), t(lang, 'privacy_consent_sub'));
+      return;
+    }
+    const consents = consent === 'both' ? ['profile', 'notifications'] : consent === 'profile' ? ['profile'] : ['notifications'];
+    saveConsent({
+      userId: profile.id,
+      policyVersion: 'v1',
+      acceptedAt: new Date().toISOString(),
+      consents,
+    }).catch(() => undefined);
     onDone(profile, cityKey);
   };
 
@@ -96,7 +154,12 @@ export default function Onboarding({ lang, onDone, fixedId }: Props) {
         <TextInput style={styles.input} placeholder={t(lang, 'ob_name_ph')} placeholderTextColor={colors.textSoft} value={name} onChangeText={setName} />
 
         <Text style={styles.fieldLabel}>{t(lang, 'ob_city')}</Text>
-        <TextInput style={styles.input} placeholder={t(lang, 'ob_city_ph')} placeholderTextColor={colors.textSoft} value={city} onChangeText={setCity} autoCapitalize="none" />
+        <View style={styles.cityRow}>
+          <TextInput style={[styles.input, styles.cityInput]} placeholder={t(lang, 'ob_city_ph')} placeholderTextColor={colors.textSoft} value={city} onChangeText={setCity} autoCapitalize="none" />
+          <TouchableOpacity style={[styles.detectBtn, detecting && styles.detectBtnDisabled]} disabled={detecting} onPress={detectCity}>
+            <Text style={styles.detectText}>{detecting ? t(lang, 'ob_detect_busy') : t(lang, 'ob_detect_city')}</Text>
+          </TouchableOpacity>
+        </View>
 
         <Text style={styles.fieldLabel}>{t(lang, 'ob_conditions')}</Text>
         <View style={styles.chipWrap}>
@@ -110,8 +173,32 @@ export default function Onboarding({ lang, onDone, fixedId }: Props) {
           })}
         </View>
 
-        <TouchableOpacity style={styles.cta} onPress={finish}>
-          <Text style={styles.ctaText}>{t(lang, 'ob_finish')} →</Text>
+        <View style={styles.consentCard}>
+          <Text style={styles.consentTitle}>{t(lang, 'privacy_consent_title')}</Text>
+          <Text style={styles.consentSub}>{t(lang, 'privacy_consent_sub')}</Text>
+          {(['profile', 'notifications'] as const).map((c) => {
+            const active = consent === 'both' || consent === c;
+            return (
+              <View key={c} style={styles.consentRow}>
+                <TouchableOpacity hitSlop={10} onPress={() => toggleConsent(c)}>
+                  <View style={[styles.checkbox, active && styles.checkboxOn]}>
+                    {active ? <Text style={styles.checkboxMark}>✓</Text> : null}
+                  </View>
+                </TouchableOpacity>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.consentName}>{t(lang, c === 'profile' ? 'privacy_consent_profile' : 'privacy_consent_notifications')}</Text>
+                  <Text style={styles.consentDesc}>{t(lang, c === 'profile' ? 'privacy_consent_conditions_desc' : 'privacy_consent_notif_desc')}</Text>
+                </View>
+              </View>
+            );
+          })}
+          <TouchableOpacity onPress={() => Alert.alert(t(lang, 'privacy_policy'), t(lang, 'privacy_consent_sub') + '\n\n• ' + t(lang, 'privacy_stored_locally') + '\n• ' + t(lang, 'privacy_retention') + '\n• ' + t(lang, 'privacy_permissions'))}>
+            <Text style={styles.consentLink}>{t(lang, 'privacy_policy')} →</Text>
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity style={[styles.cta, consent === 'none' && styles.ctaMuted]} onPress={finish}>
+          <Text style={styles.ctaText}>{t(lang, 'privacy_accept')} →</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -119,6 +206,18 @@ export default function Onboarding({ lang, onDone, fixedId }: Props) {
 }
 
 const L = (lang: Lang, en: string, hi: string) => (lang === 'hi' ? hi : en);
+
+/** Great-circle distance in km (Haversine) for nearest-city matching. */
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
@@ -133,10 +232,26 @@ const styles = StyleSheet.create({
   personaLabel: { fontSize: 13, fontWeight: '700', color: colors.text, marginTop: 6, textAlign: 'center' },
   personaDesc: { fontSize: 10, color: colors.textMuted, marginTop: 2, textAlign: 'center' },
   fieldLabel: { fontSize: 13, fontWeight: '700', color: colors.text, marginTop: 18, marginBottom: 6 },
+  cityRow: { flexDirection: 'row', gap: 8 },
+  cityInput: { flex: 1 },
+  detectBtn: { backgroundColor: '#EEF2FF', borderWidth: 1, borderColor: '#C7D2FE', borderRadius: 12, paddingHorizontal: 12, justifyContent: 'center' },
+  detectBtnDisabled: { opacity: 0.5 },
+  detectText: { fontSize: 12, fontWeight: '700', color: colors.primary },
   input: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: colors.text, backgroundColor: '#fff' },
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   condChip: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: '#fff', borderWidth: 1, borderColor: '#E2E8F0' },
   condText: { fontSize: 12, fontWeight: '600', color: '#334155' },
-  cta: { marginTop: 26, backgroundColor: colors.primary, paddingVertical: 16, borderRadius: 16, alignItems: 'center' },
+  consentCard: { marginTop: 24, backgroundColor: '#EEF2FF', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: '#C7D2FE' },
+  consentTitle: { fontSize: 14, fontWeight: '800', color: colors.text },
+  consentSub: { fontSize: 11.5, color: colors.textMuted, marginTop: 4, lineHeight: 16 },
+  consentRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 },
+  checkbox: { width: 22, height: 22, borderRadius: 7, borderWidth: 2, borderColor: '#C7D2FE', backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  checkboxOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  checkboxMark: { color: '#fff', fontSize: 13, fontWeight: '800' },
+  consentName: { fontSize: 12.5, fontWeight: '700', color: '#1E293B' },
+  consentDesc: { fontSize: 11, color: colors.textMuted, marginTop: 1, lineHeight: 15 },
+  consentLink: { fontSize: 11.5, fontWeight: '700', color: colors.primary, marginTop: 12 },
+  cta: { marginTop: 18, backgroundColor: colors.primary, paddingVertical: 16, borderRadius: 16, alignItems: 'center' },
+  ctaMuted: { backgroundColor: '#94A3B8' },
   ctaText: { color: '#fff', fontSize: 16, fontWeight: '800' },
 });

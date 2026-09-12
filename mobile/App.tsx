@@ -1,25 +1,31 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SplashScreen from 'expo-splash-screen';
+import { AppState, Platform } from 'react-native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
+import type { LinkingOptions } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import NetInfo from '@react-native-community/netinfo';
+import * as Notifications from 'expo-notifications';
 import type { Activity, Card, Lang, LiveWeather, ScenarioKey, UserProfile, Provider } from './src/engine';
 import { buildHomepage, CITIES, DEMO_USERS, applyBehaviorSignal } from './src/engine';
+import { t } from './src/i18n';
 import { fetchLiveWeather, staleLiveWeather } from './src/live';
 import type { DisasterAlertWithPolygon } from './src/types';
 import Onboarding from './src/screens/Onboarding';
 import AuthGate from './src/screens/AuthGate';
-import Home from './src/screens/Home';
-import MapScreen from './src/screens/MapScreen';
-import MyDay from './src/screens/MyDay';
-import Ask from './src/screens/Ask';
-import Alerts from './src/screens/Alerts';
-import Me from './src/screens/Me';
 import AdminDashboard from './src/screens/AdminDashboard';
 import NotificationSettingsModal from './src/screens/NotificationSettings';
 import AR from './src/screens/AR';
 import Social from './src/screens/Social';
-import TabBar from './src/components/TabBar';
 import { ExplainSheet } from './src/components/ExplainSheet';
+import MainTabs from './src/navigation/MainTabs';
+import { ScreenDepsContext } from './src/navigation/MainTabs';
+import type { AppScreenDeps } from './src/navigation/MainTabs';
+import { APP_LINKING, TAB_ROUTE } from './src/navigation/types';
+import type { RootStackParamList, TabKey } from './src/navigation/types';
+import { ToastHost, showToast } from './src/components/Toast';
 import { registerForPushNotificationsAsync } from './src/services/notifications';
 import {
   saveHomepageToOfflineCache,
@@ -29,14 +35,26 @@ import {
   setOfflineModeSimulated,
   clearOfflineCache,
 } from './src/services/offlineCache';
-import { getAuthToken, getSyncServer, pullProfile, pushProfile, setAuthToken } from './src/services/profileSync';
+import { registerBackgroundSync, unregisterBackgroundSync } from './src/services/backgroundSync';
+import { checkForUpdates } from './src/services/updates';
+import { getAuthToken, getSyncServer, pullProfile, pushProfile, registerPushToken, setAuthToken, subscribeSessionExpired } from './src/services/profileSync';
+import { kvGetJson, kvRemove, kvSetJson } from './src/services/db';
 
-export type Tab = 'home' | 'map' | 'myday' | 'ask' | 'alerts' | 'me';
+const navRef = createNavigationContainerRef<RootStackParamList>();
+const RootStack = createNativeStackNavigator<RootStackParamList>();
+
+function gotoTab(tab: TabKey) {
+  if (navRef.isReady()) {
+    navRef.navigate('Main', { screen: TAB_ROUTE[tab] });
+  }
+}
 
 const PROFILE_KEY = '@mausam/profile';
 const LANG_KEY = '@mausam/lang';
 const LIVE_KEY = '@mausam/live';
 const LIVE_TTL_MS = 30 * 60 * 1000; // re-fetch every 30 min
+
+SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 type Demo = (typeof DEMO_USERS)[number];
 
@@ -45,12 +63,12 @@ export default function App() {
   const [demo, setDemo] = useState<Demo | null>(null);
   const [lang, setLangState] = useState<Lang>('en');
   const [scenario, setScenario] = useState<ScenarioKey | 'auto'>('auto');
-  const [tab, setTab] = useState<Tab>('home');
   const [hydrated, setHydrated] = useState(false);
   // auth gate: which account id this device is signed in as ('' when logged out)
   const [authedAccountId, setAuthedAccountId] = useState<string | null>(null);
   const [pendingAccountId, setPendingAccountId] = useState<string | null>(null);
   const [skipAuth, setSkipAuth] = useState(false);
+  const [sessionNotice, setSessionNotice] = useState<string | null>(null);
   const [explaining, setExplaining] = useState<Card | null>(null);
   const [showAR, setShowAR] = useState(false);
   const [showSocial, setShowSocial] = useState(false);
@@ -65,6 +83,7 @@ export default function App() {
   const [showNotifSettings, setShowNotifSettings] = useState(false);
   const [activeAlert, setActiveAlert] = useState<DisasterAlertWithPolygon | null>(null);
   const [isOffline, setIsOffline] = useState(false);
+  const [networkUp, setNetworkUp] = useState(true);
   const [lastSyncIso, setLastSyncIso] = useState<string>(new Date().toISOString());
   const [providersState, setProvidersState] = useState<Provider[]>([
     { name: 'IMD', status: 'ok', latencyMs: 142 },
@@ -76,7 +95,7 @@ export default function App() {
 
   const setLang = (l: Lang) => {
     setLangState(l);
-    AsyncStorage.setItem(LANG_KEY, l);
+    kvSetJson(LANG_KEY, l);
   };
 
   const refreshLive = async (cityKey: string, force = false) => {
@@ -89,15 +108,16 @@ export default function App() {
       liveRef.current[cityKey] = fresh;
       setLive(fresh);
       setLiveForCity(cityKey);
-      AsyncStorage.setItem(LIVE_KEY, JSON.stringify({ [cityKey]: fresh }));
+      kvSetJson(LIVE_KEY, { [cityKey]: fresh });
     } catch {
       setLiveError(true);
+      showToast(t(lang, 'live_error'), 'error');
       // fall back to last-known live for this city, marked stale
       let cached = liveRef.current[cityKey];
       if (!cached) {
         try {
-          const s = await AsyncStorage.getItem(LIVE_KEY);
-          if (s) { const m = JSON.parse(s); cached = m[cityKey] ?? m; }
+          const m = await kvGetJson<Record<string, LiveWeather>>(LIVE_KEY);
+          if (m) { cached = m[cityKey] ?? (m as unknown as LiveWeather); }
         } catch { /* ignore */ }
       }
       if (cached) { const st = staleLiveWeather(cached); setLive(st); setLiveForCity(cityKey); liveRef.current[cityKey] = st; }
@@ -110,11 +130,8 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        const raw = await AsyncStorage.getItem(LIVE_KEY);
-        if (raw) {
-          const m = JSON.parse(raw);
-          if (m && typeof m === 'object') liveRef.current = m;
-        }
+        const m = await kvGetJson<Record<string, LiveWeather>>(LIVE_KEY);
+        if (m && typeof m === 'object') liveRef.current = m;
       } catch { /* ignore */ }
     })();
   }, []);
@@ -126,10 +143,10 @@ export default function App() {
         //    never blocks first paint, and no-ops on web where push is unsupported)
         void registerForPushNotificationsAsync();
 
-        // 2. Load stored profile & lang
-        const [rawProfile, rawLang, meta] = await Promise.all([
-          AsyncStorage.getItem(PROFILE_KEY),
-          AsyncStorage.getItem(LANG_KEY),
+        // 2. Load stored profile & lang from the local SQLite data layer
+        const [storedProfile, rawLang, meta] = await Promise.all([
+          kvGetJson<UserProfile>(PROFILE_KEY),
+          kvGetJson<Lang>(LANG_KEY),
           getCacheMetadata(),
         ]);
 
@@ -139,21 +156,17 @@ export default function App() {
           setLastSyncIso(meta.lastSyncIso);
         }
 
-        let storedProfile: UserProfile | null = null;
-        if (rawProfile) {
-          const parsed = JSON.parse(rawProfile);
-          if (parsed && Array.isArray(parsed.personas) && parsed.personas.length && (parsed.id || parsed.name)) {
-            storedProfile = parsed;
-            setProfile(parsed);
+        if (storedProfile) {
+          if (Array.isArray(storedProfile.personas) && storedProfile.personas.length && (storedProfile.id || storedProfile.name)) {
+            setProfile(storedProfile);
           } else {
-            await AsyncStorage.removeItem(PROFILE_KEY);
+            await kvRemove(PROFILE_KEY);
           }
         } else {
-          // Check if cached homepage exists in WatermelonDB offline storage
+          // Check if cached homepage exists in the local SQLite snapshot store
           const cached = await loadHomepageFromOfflineCache();
           if (cached?.hp?.user) {
-            storedProfile = cached.hp.user;
-            setProfile(storedProfile);
+            setProfile(cached.hp.user);
             setLastSyncIso(cached.timestamp);
           }
         }
@@ -167,8 +180,95 @@ export default function App() {
         // ignore corrupt storage
       }
       setHydrated(true);
+      SplashScreen.hideAsync().catch(() => undefined);
     })();
   }, []);
+
+  // Keep the offline snapshot fresh while the app is backgrounded. Registered
+  // once a signed-in profile exists; dropped on sign-out/redo so no background
+  // task runs for a user whose data has been wiped.
+  useEffect(() => {
+    if (!profile || !authedAccountId) {
+      void unregisterBackgroundSync();
+      return;
+    }
+    void registerBackgroundSync();
+  }, [profile, authedAccountId]);
+
+  // Any protected call returning 401 (revoked/expired session, password
+  // reset elsewhere) wipes the stored token and bounces to the auth gate.
+  useEffect(() => {
+    const unsub = subscribeSessionExpired(() => {
+      setAuthedAccountId(null);
+      setSessionNotice(t(lang, 'sec_pull_401'));
+    });
+    return unsub;
+  }, [lang]);
+
+  // Register this device for server-push once signed in (fire-and-forget).
+  useEffect(() => {
+    if (!authedAccountId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [token, server] = await Promise.all([getAuthToken(authedAccountId), getSyncServer()]);
+        if (cancelled || !token || !server) return;
+        await registerForPushNotificationsAsync();
+        const push = await Notifications.getExpoPushTokenAsync();
+        if (cancelled || !push?.data) return;
+        await registerPushToken(
+          server,
+          authedAccountId,
+          token,
+          push.data,
+          Platform.OS === 'ios' ? 'ios' : 'android',
+        );
+      } catch {
+        // offline, missing projectId, or permission denied → skip silently
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authedAccountId]);
+
+  // Connectivity: detect real network loss so stale caches are marked explicitly.
+  useEffect(() => {
+    const unsub = NetInfo.addEventListener((state) => {
+      const connected = state.isConnected !== false;
+      setNetworkUp(connected);
+      if (connected) {
+        // came back online → refresh live data for the active city
+        if (profile) refreshLive(profile.city || 'pune');
+      }
+    });
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile]);
+
+  // App foregrounding: refresh live data + provider status when returning.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active' && profile) refreshLive(profile.city || 'pune');
+      // Prefetch OTA updates quietly in built apps; applied on next cold start.
+      if (next === 'active') void checkForUpdates(true);
+    });
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile]);
+
+  // Tapping a push notification (or app opened from a cold-start push) routes
+  // to the alert centre so the message is never lost.
+  useEffect(() => {
+    if (!authedAccountId) return;
+    const sub = Notifications.addNotificationResponseReceivedListener(() => {
+      gotoTab('alerts');
+    });
+    Notifications.getLastNotificationResponseAsync().then((resp) => {
+      if (resp) gotoTab('alerts');
+    });
+    return () => sub.remove();
+  }, [authedAccountId]);
 
   // fetch live weather whenever the active city changes
   const activeCityKey = profile?.city || 'pune';
@@ -193,17 +293,17 @@ export default function App() {
     setLang(d.user.language);
     // live real data drives the demo user's city; manual scenario is available via the drill.
     setScenario('auto');
-    setTab('home');
-    AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(d.user));
+    gotoTab('home');
+    kvSetJson(PROFILE_KEY, d.user);
   };
 
   const handleOnboardingDone = async (p: UserProfile, cityKey: string) => {
     setDemo(null);
     setProfile(p);
     setLang(p.language);
-    setTab('home');
+    gotoTab('home');
     setScenario('auto');
-    await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(p));
+    await kvSetJson(PROFILE_KEY, p);
     // If the user just authenticated, back this new profile up under the
     // account id so it exists on the server from day one.
     if (pendingAccountId) {
@@ -222,6 +322,7 @@ export default function App() {
   /** Called by the AuthGate after a successful sign-in/create. */
   const handleAuthed = async (restored: UserProfile | null, accountId: string) => {
     setSkipAuth(false);
+    setSessionNotice(null);
     setAuthedAccountId(accountId);
     if (restored) {
       // signed in and the account has a cloud backup → go straight to Home
@@ -231,8 +332,8 @@ export default function App() {
       setLang(restored.language);
       setDemo(null);
       setScenario('auto');
-      setTab('home');
-      await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(restored));
+      gotoTab('home');
+      await kvSetJson(PROFILE_KEY, restored);
     } else {
       // account exists (or was created) but has no backup → build one via onboarding
       setPendingAccountId(accountId);
@@ -242,7 +343,8 @@ export default function App() {
   /** Sign-out triggers the auth gate again on next render. */
   const handleSessionEnded = () => {
     setAuthedAccountId(null);
-    setTab('home');
+    setSkipAuth(false);
+    gotoTab('home');
   };
 
   /** Apply a profile pulled from the cloud (cross-device sync). */
@@ -251,8 +353,8 @@ export default function App() {
     setLang(p.language);
     setDemo(null);
     setScenario('auto');
-    setTab('home');
-    await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(p));
+    gotoTab('home');
+    await kvSetJson(PROFILE_KEY, p);
   };
 
   // Cross-device restore: the whole device session switches to another account.
@@ -265,8 +367,8 @@ export default function App() {
     setLang(p.language);
     setDemo(null);
     setScenario('auto');
-    setTab('home');
-    await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(p));
+    gotoTab('home');
+    await kvSetJson(PROFILE_KEY, p);
   };
 
   const redoOnboarding = async () => {
@@ -282,13 +384,13 @@ export default function App() {
     setAuthedAccountId(null);
     setPendingAccountId(null);
     setProfile(null);
-    setTab('home');
-    await AsyncStorage.removeItem(PROFILE_KEY);
+    gotoTab('home');
+    await kvRemove(PROFILE_KEY);
   };
 
   const setScenarioOverride = (s: ScenarioKey | 'auto') => {
     setScenario(s);
-    setTab('home');
+    gotoTab('home');
   };
 
   const addActivity = (a: Activity) => {
@@ -299,7 +401,7 @@ export default function App() {
     setProfile((p) => {
       if (!p) return p;
       const next = { ...p, behaviorBias: applyBehaviorSignal(type, signal, p.behaviorBias) };
-      AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(next));
+      kvSetJson(PROFILE_KEY, next);
       return next;
     });
   };
@@ -335,6 +437,7 @@ export default function App() {
     setLastSyncIso(nowIso);
     setIsOffline(false);
     await setOfflineModeSimulated(false);
+    showToast(t(lang, 'live_synced'), 'success');
   };
 
   if (!hydrated) {
@@ -349,6 +452,7 @@ export default function App() {
         <AuthGate
           lang={lang}
           defaultAccountId={profile?.id}
+          notice={sessionNotice ?? undefined}
           onAuthed={handleAuthed}
           onSkip={() => setSkipAuth(true)}
         />
@@ -379,77 +483,51 @@ export default function App() {
 
   const staleness = calculateStalenessInfo(lastSyncIso, isOffline || scenario !== 'auto');
 
+  const deps: AppScreenDeps = {
+    hp,
+    lang,
+    scenario,
+    setLang,
+    activeAlert,
+    staleness,
+    liveFresh: !!(live && liveForCity === activeCityKey && !live.stale),
+    liveStale: !!((live && liveForCity === activeCityKey && live.stale) || liveError),
+    liveBusy,
+    offline: scenario !== 'auto' || isOffline || !networkUp,
+    isOffline,
+    onSelectCity: (cityKey) => setProfile((p) => (p ? { ...p, city: cityKey } : p)),
+    onAddActivity: addActivity,
+    onCardSignal: handleCardSignal,
+    onExplain: setExplaining,
+    onRedoOnboarding: redoOnboarding,
+    onSwitchDemo: switchDemo,
+    onSetScenario: setScenarioOverride,
+    onOpenAdmin: () => setShowAdmin(true),
+    onOpenNotifSettings: () => setShowNotifSettings(true),
+    onOpenAR: () => setShowAR(true),
+    onOpenSocial: () => setShowSocial(true),
+    onRetry: () => {
+      handleSyncNow();
+      refreshLive(activeCityKey, true);
+    },
+    onSyncPull: applySyncedProfile,
+    onRestoreAccount: restoreAccountProfile,
+    onSessionEnded: handleSessionEnded,
+  };
+
   return (
     <SafeAreaProvider>
       <StatusBar style="auto" />
-      {tab === 'home' && (
-        <Home
-          hp={hp}
-          lang={lang}
-          offline={scenario !== 'auto' || isOffline}
-          liveFresh={!!(live && liveForCity === activeCityKey && !live.stale)}
-          liveStale={!!((live && liveForCity === activeCityKey && live.stale) || liveError)}
-          liveBusy={liveBusy}
-          activeAlert={activeAlert}
-          staleness={staleness}
-          onOpenMyDay={() => setTab('myday')}
-          onOpenAlerts={() => setTab('alerts')}
-          onOpenMe={() => setTab('me')}
-          onOpenMap={() => setTab('map')}
-          onOpenAdmin={() => setShowAdmin(true)}
-          onOpenNotifSettings={() => setShowNotifSettings(true)}
-          onOpenAR={() => setShowAR(true)}
-          onOpenSocial={() => setShowSocial(true)}
-          onRedoOnboarding={redoOnboarding}
-          onRetry={() => { handleSyncNow(); refreshLive(activeCityKey, true); }}
-          onCardSignal={handleCardSignal}
-        />
-      )}
-
-      {tab === 'map' && (
-        <MapScreen
-          hp={hp}
-          lang={lang}
-          activeAlert={activeAlert}
-          onOpenAdmin={() => setShowAdmin(true)}
-          onSelectCity={(cityKey) => {
-            setProfile((p) => (p ? { ...p, city: cityKey } : p));
-          }}
-        />
-      )}
-
-      {tab === 'myday' && <MyDay hp={hp} lang={lang} onAddActivity={addActivity} />}
-      {tab === 'ask' && <Ask hp={hp} lang={lang} />}
-      {tab === 'alerts' && (
-        <Alerts
-          hp={hp}
-          lang={lang}
-          activeAlert={activeAlert}
-          onExplain={setExplaining}
-          onOpenMap={() => setTab('map')}
-          onOpenNotifSettings={() => setShowNotifSettings(true)}
-        />
-      )}
-      {tab === 'me' && (
-        <Me
-          hp={hp}
-          lang={lang}
-          scenario={scenario}
-          setLang={setLang}
-          onRedoOnboarding={redoOnboarding}
-          onSwitchDemo={switchDemo}
-          onSetScenario={setScenarioOverride}
-          onOpenAdmin={() => setShowAdmin(true)}
-          onOpenNotifSettings={() => setShowNotifSettings(true)}
-          onSyncPull={applySyncedProfile}
-          onRestoreAccount={restoreAccountProfile}
-          onSessionEnded={handleSessionEnded}
-          isOffline={isOffline}
-          staleness={staleness}
-        />
-      )}
-
-      <TabBar current={tab} onTab={setTab} lang={lang} />
+      <ScreenDepsContext.Provider value={deps}>
+        <NavigationContainer
+          ref={navRef}
+          linking={APP_LINKING as unknown as LinkingOptions<RootStackParamList>}
+        >
+          <RootStack.Navigator screenOptions={{ headerShown: false }}>
+            <RootStack.Screen name="Main" component={MainTabs} />
+          </RootStack.Navigator>
+        </NavigationContainer>
+      </ScreenDepsContext.Provider>
 
       {/* Modals & Bottom Sheets */}
       <ExplainSheet card={explaining} lang={lang} onClose={() => setExplaining(null)} />
@@ -477,6 +555,7 @@ export default function App() {
 
       {showAR && <AR hp={hp} lang={lang} onClose={() => setShowAR(false)} />}
       {showSocial && <Social hp={hp} lang={lang} onClose={() => setShowSocial(false)} />}
+      <ToastHost />
     </SafeAreaProvider>
   );
 }

@@ -1,0 +1,79 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;300;400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+:root {
+  font-family: "Plus Jakarta Sans", "Noto Sans Devanagari", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #060a14;
+}
+
+/* studio backdrop */
+.studio-bg {
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(21, 101, 192, 0.35), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, rgba(56, 189, 248, 0.18), transparent 55%),
+    radial-gradient(800px 500px at 50% 110%, rgba(99, 102, 241, 0.18), transparent 60%),
+    linear-gradient(180deg, #070b16 0%, #0b1220 100%);
+}
+.studio-bg::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+}
+
+/* hide scrollbars for horizontal strips */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* thin, subtle scrollbars elsewhere */
+*::-webkit-scrollbar { width: 6px; height: 6px; }
+*::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, 0.35); border-radius: 999px; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+/* motion */
+@keyframes card-enter {
+  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.card-enter { animation: card-enter 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+@keyframes sheet-enter {
+  from { transform: translateY(40px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.sheet-enter { animation: sheet-enter 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+@keyframes screen-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.screen-enter { animation: screen-enter 0.28s ease-out both; }
+
+@keyframes rain-fall {
+  from { transform: translateY(-60px); opacity: 0; }
+  20% { opacity: 1; }
+  to { transform: translateY(260px); opacity: 0; }
+}
+.rain-drop { top: -40px; animation-name: rain-fall; animation-timing-function: linear; animation-iteration-count: infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .card-enter, .sheet-enter, .screen-enter, .rain-drop { animation: none !important; }
+}
+
+input[type="range"] { height: 4px; }

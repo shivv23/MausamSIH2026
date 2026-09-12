@@ -9,7 +9,7 @@ from __future__ import annotations
 from sqlalchemy import delete, select
 
 from app.db import get_session
-from app.models.orm import ActivityRow, UserCredRow, UserRow
+from app.models.orm import ActivityRow, PushTokenRow, UserCredRow, UserNotificationRow, UserRow
 from app.models.schemas import Activity, ActivityInput, UserProfile
 
 
@@ -143,6 +143,175 @@ async def set_password_hash(user_id: str, password_hash: str) -> None:
         else:
             row.password_hash = password_hash
         await s.commit()
+
+
+# ---- Full account records (contact/OTP/version/lockout) ----------------------
+
+_ACCOUNT_FIELDS = {
+    "email", "phone", "email_verified", "phone_verified", "token_version",
+    "otp_code_hash", "otp_purpose", "otp_expires_at", "otp_attempts",
+    "otp_verified_flag", "otp_verified_at", "failed_logins", "locked_until",
+}
+
+_DT_FIELDS = {"otp_expires_at", "otp_verified_at", "locked_until"}
+
+
+async def get_account(user_id: str) -> dict | None:
+    async with get_session() as s:
+        row = (await s.execute(
+            select(UserCredRow).where(UserCredRow.user_id == user_id))).scalar_one_or_none()
+        if row is None:
+            return None
+        return {
+            "user_id": row.user_id,
+            "password_hash": row.password_hash,
+            "email": row.email,
+            "phone": row.phone,
+            "email_verified": bool(row.email_verified),
+            "phone_verified": bool(row.phone_verified),
+            "token_version": int(row.token_version or 0),
+            "otp_code_hash": row.otp_code_hash,
+            "otp_purpose": row.otp_purpose,
+            "otp_expires_at": row.otp_expires_at.isoformat() if row.otp_expires_at else None,
+            "otp_attempts": int(row.otp_attempts or 0),
+            "otp_verified_flag": row.otp_verified_flag,
+            "otp_verified_at": row.otp_verified_at.isoformat() if row.otp_verified_at else None,
+            "failed_logins": int(row.failed_logins or 0),
+            "locked_until": row.locked_until.isoformat() if row.locked_until else None,
+        }
+
+
+async def save_account(user_id: str, fields: dict) -> dict:
+    from datetime import datetime
+    async with get_session() as s:
+        row = (await s.execute(
+            select(UserCredRow).where(UserCredRow.user_id == user_id))).scalar_one_or_none()
+        if row is None:
+            raise RuntimeError(f"account {user_id} does not exist (register first)")
+        for key, value in fields.items():
+            if key not in _ACCOUNT_FIELDS:
+                continue
+            if key in _DT_FIELDS and isinstance(value, str) and value:
+                value = datetime.fromisoformat(value)
+            setattr(row, key, value)
+        await s.commit()
+    return await get_account(user_id)
+
+
+# ---- Push-token registry -----------------------------------------------------
+
+async def list_push_tokens(user_id: str) -> list[dict]:
+    async with get_session() as s:
+        rows = (await s.execute(
+            select(PushTokenRow).where(PushTokenRow.user_id == user_id))
+        ).scalars().all()
+        return [{"user_id": r.user_id, "platform": r.platform,
+                 "expo_push_token": r.expo_push_token} for r in rows]
+
+
+async def upsert_push_token(user_id: str, platform: str, expo_push_token: str) -> None:
+    from datetime import datetime, timezone
+    async with get_session() as s:
+        row = (await s.execute(
+            select(PushTokenRow).where(PushTokenRow.expo_push_token == expo_push_token)
+        )).scalar_one_or_none()
+        if row is None:
+            row = PushTokenRow(user_id=user_id, platform=platform, expo_push_token=expo_push_token)
+            s.add(row)
+        else:
+            row.user_id = user_id
+            row.platform = platform
+            row.updated_at = datetime.now(timezone.utc)
+        await s.commit()
+
+
+async def delete_push_token(user_id: str, expo_push_token: str) -> bool:
+    async with get_session() as s:
+        result = await s.execute(
+            delete(PushTokenRow).where(
+                PushTokenRow.user_id == user_id,
+                PushTokenRow.expo_push_token == expo_push_token))
+        await s.commit()
+        return result.rowcount > 0
+
+
+async def list_all_push_tokens() -> list[dict]:
+    async with get_session() as s:
+        rows = (await s.execute(select(PushTokenRow))).scalars().all()
+        return [{"user_id": r.user_id, "platform": r.platform,
+                 "expo_push_token": r.expo_push_token} for r in rows]
+
+
+async def delete_push_token_all(expo_push_token: str) -> None:
+    async with get_session() as s:
+        await s.execute(delete(PushTokenRow).where(PushTokenRow.expo_push_token == expo_push_token))
+        await s.commit()
+
+
+# ---- In-app notification centre / alert archive ------------------------------
+
+async def list_notifications(user_id: str) -> list[dict]:
+    async with get_session() as s:
+        rows = (await s.execute(
+            select(UserNotificationRow).where(UserNotificationRow.user_id == user_id)
+        )).scalars().all()
+    rows = sorted(rows, key=lambda r: r.created_at, reverse=True)
+    return [{
+        "id": r.id, "user_id": r.user_id, "alert_id": r.alert_id,
+        "severity": r.severity, "event_type": r.event_type,
+        "headline": r.headline, "body": r.body, "region": r.region,
+        "read_at": r.read_at.isoformat() if r.read_at else None,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+    } for r in rows]
+
+
+async def add_notification(user_id: str, alert_id: str, severity: str, event_type: str,
+                           headline: str, body: str, region: str) -> None:
+    from datetime import datetime, timezone
+    async with get_session() as s:
+        existing = (await s.execute(
+            select(UserNotificationRow).where(
+                UserNotificationRow.user_id == user_id,
+                UserNotificationRow.alert_id == alert_id,
+            ))).scalar_one_or_none()
+        if existing is not None:
+            return
+        s.add(UserNotificationRow(
+            user_id=user_id, alert_id=alert_id, severity=severity,
+            event_type=event_type, headline=headline, body=body, region=region,
+            created_at=datetime.now(timezone.utc),
+        ))
+        await s.commit()
+
+
+async def ack_notification(user_id: str, notification_id: str) -> bool:
+    from datetime import datetime, timezone
+    async with get_session() as s:
+        row = (await s.execute(
+            select(UserNotificationRow).where(
+                UserNotificationRow.user_id == user_id,
+                UserNotificationRow.id == notification_id,
+            ))).scalar_one_or_none()
+        if row is None:
+            return False
+        row.read_at = datetime.now(timezone.utc)
+        await s.commit()
+        return True
+
+
+async def delete_account(user_id: str) -> bool:
+    """Full right-to-erasure: account, backup, inbox, push tokens, activities."""
+    async with get_session() as s:
+        result = (await s.execute(
+            delete(UserCredRow).where(UserCredRow.user_id == user_id)))
+        await s.execute(delete(UserNotificationRow).where(UserNotificationRow.user_id == user_id))
+        await s.execute(delete(PushTokenRow).where(PushTokenRow.user_id == user_id))
+        await s.execute(delete(ActivityRow).where(ActivityRow.user_id == user_id))
+        row = (await s.execute(select(UserRow).where(UserRow.id == user_id))).scalar_one_or_none()
+        if row is not None:
+            await s.execute(delete(UserRow).where(UserRow.id == user_id))
+        await s.commit()
+        return result.rowcount > 0
 
 
 def _row_to_activity(r: ActivityRow) -> Activity:

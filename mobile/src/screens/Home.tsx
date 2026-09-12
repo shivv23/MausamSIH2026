@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable, RefreshControl, Animated, Easing } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { BehaviorSignal, Card, Homepage, Lang, PersonaKey } from '../engine';
@@ -20,6 +20,8 @@ interface Props {
   liveFresh?: boolean;
   liveStale?: boolean;
   liveBusy?: boolean;
+  /** Pull-to-refresh is active while a live-data refresh is in flight. */
+  refreshing?: boolean;
   activeAlert?: DisasterAlertWithPolygon | null;
   staleness?: StalenessInfo;
   onOpenMyDay: () => void;
@@ -42,6 +44,7 @@ export default function Home({
   liveFresh,
   liveStale,
   liveBusy,
+  refreshing = !!liveBusy,
   activeAlert,
   staleness,
   onOpenMyDay,
@@ -111,6 +114,20 @@ export default function Home({
     learnTimer.current = setTimeout(() => setLearnFlash(null), 1800);
   };
   const learnTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Skeleton shimmer while the first live-data fetch is in flight.
+  const [loadSkeleton] = useState(() => new Animated.Value(0.35));
+  const hasLive = !!liveFresh || !!liveStale;
+  React.useEffect(() => {
+    if (!(!hasLive && liveBusy)) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(loadSkeleton, { toValue: 1, duration: 650, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(loadSkeleton, { toValue: 0.35, duration: 650, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [hasLive, liveBusy, loadSkeleton]);
   const alertCount =
     (activeAlert ? 1 : 0) +
     hp.pinned.length +
@@ -125,7 +142,11 @@ export default function Home({
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRetry} tintColor={colors.primary} colors={[colors.primary]} />}
+      >
         {/* Header */}
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
@@ -243,8 +264,16 @@ export default function Home({
           </View>
         ) : null}
 
-        {/* Hero Current Weather Card */}
-        <HeroCard hp={hp} lang={lang} />
+        {/* Hero Current Weather Card (skeleton shimmer on first live load) */}
+        {!hasLive && liveBusy ? (
+          <View style={styles.skeletonWrap} accessibilityLabel="Loading live weather">
+            <Animated.View style={[styles.skeletonCard, { opacity: loadSkeleton }]} />
+            <Animated.View style={[styles.skeletonRow, { opacity: loadSkeleton }]} />
+            <Animated.View style={[styles.skeletonRow, { opacity: loadSkeleton }]} />
+          </View>
+        ) : (
+          <HeroCard hp={hp} lang={lang} />
+        )}
 
         {/* Composite Daily Health Score + symptom logging */}
         <HealthScoreCard hp={hp} lang={lang} today={today} onToggleSymptom={toggleSymptom} />
@@ -457,6 +486,9 @@ const styles = StyleSheet.create({
   footerTrust: { fontSize: 10.5, textAlign: 'center', color: colors.textSoft, lineHeight: 15 },
   report: { marginTop: 8, fontSize: 11, fontWeight: '700', color: colors.textMuted },
   features: { flexDirection: 'row', gap: 8, marginTop: 18 },
+  skeletonWrap: { gap: 12, marginBottom: 12 },
+  skeletonCard: { height: 170, borderRadius: 20, backgroundColor: '#E2E8F0' },
+  skeletonRow: { height: 46, borderRadius: 14, backgroundColor: '#E2E8F0' },
   featBtn: {
     flex: 1,
     backgroundColor: '#fff',

@@ -7,8 +7,9 @@ sqlalchemy[asyncio]==2.0.36
 asyncpg==0.30.0
 geoalchemy2==0.16.0
 alembic==1.14.1
-# redis==5.2.1
-# celery==5.4.0
+# Optional alert fan-out + dedupe cache (only used when the broker is wired).
+celery==5.4.0
+redis==5.2.1
 
 # test & quality
 pytest==8.3.4

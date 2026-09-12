@@ -1,0 +1,11 @@
+appId: host.exp.Exponent
+name: alerts-notification-centre
+# Requires auth-and-onboarding to have run (Home is visible).
+# Opens the Alerts tab and verifies the official/derived/Info already-rendered
+# notification centre.
+---
+- tapOn: "Alerts"
+- extendedWaitUntil:
+    visible: "Official · Derived · Informational"
+    timeout: 10000
+- assertVisible: "Info"

@@ -251,5 +251,5 @@ export interface StalenessInfo {
   ageMinutes: number;
   lastUpdatedLabel: string;
   lastUpdatedLabelHi: string;
-  offlineSource: 'network' | 'watermelondb_cache' | 'mock_scenario';
+  offlineSource: 'network' | 'sqlite_cache' | 'mock_scenario';
 }

@@ -278,9 +278,16 @@ class ProfileSyncOut(BaseModel):
 # ---- Mobile account authentication ------------------------------------------
 
 class RegisterRequest(BaseModel):
-    """Create a mobile account that owns a synced profile across devices."""
+    """Create a mobile account that owns a synced profile across devices.
+
+    ``email`` / ``phone`` are optional at registration but strongly advised:
+    they unlock OTP verification and self-serve password recovery (the only
+    way to recover an account today).
+    """
     user_id: str = Field(..., min_length=2, max_length=64, pattern=r"^[A-Za-z0-9_.-]+$")
     password: str = Field(..., min_length=6, max_length=128)
+    email: Optional[str] = Field(None, max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    phone: Optional[str] = Field(None, max_length=20, pattern=r"^\+?[0-9]{10,15}$")
 
 
 class LoginRequest(BaseModel):
@@ -291,7 +298,47 @@ class LoginRequest(BaseModel):
 class AuthOut(BaseModel):
     user_id: str
     token: str
+    verified: bool = True
+    contact_verification_required: bool = False
     message: str = "ok"
+
+
+class OtpPurpose(str, Enum):
+    VERIFY_EMAIL = "verify_email"
+    VERIFY_PHONE = "verify_phone"
+    RESET_PASSWORD = "reset_password"
+
+
+class OtpRequest(BaseModel):
+    """Ask the server to generate + deliver a one-time-password.
+
+    ``contact`` is only needed when binding a contact during registration that
+    was not supplied there (it must match the account's own contact otherwise).
+    """
+    user_id: str = Field(..., min_length=2, max_length=64, pattern=r"^[A-Za-z0-9_.-]+$")
+    purpose: OtpPurpose
+    contact: Optional[str] = Field(None, max_length=254)
+
+
+class OtpVerifyRequest(BaseModel):
+    user_id: str = Field(..., min_length=2, max_length=64, pattern=r"^[A-Za-z0-9_.-]+$")
+    purpose: OtpPurpose
+    code: str = Field(..., min_length=4, max_length=8, pattern=r"^[0-9]{4,8}$")
+
+
+class ResetPasswordRequest(BaseModel):
+    """Recover an account using a reset OTP instead of the old password."""
+    user_id: str = Field(..., min_length=2, max_length=64, pattern=r"^[A-Za-z0-9_.-]+$")
+    code: str = Field(..., min_length=4, max_length=8, pattern=r"^[0-9]{4,8}$")
+    new_password: str = Field(..., min_length=6, max_length=128)
+
+
+class OtpOut(BaseModel):
+    user_id: str
+    purpose: OtpPurpose
+    sent_to: Optional[str] = None  # masked contact ("a***@g.com" / "+91****1234")
+    ttl_minutes: int
+    dev_code: Optional[str] = None  # demo/test only; removed in production
 
 
 # ---- Ask Mausam -----------------------------------------------------------
@@ -389,3 +436,47 @@ class PushTarget(BaseModel):
 class SimulationResult(BaseModel):
     alert: DisasterAlert
     affected_users: list[PushTarget] = []
+
+
+# ---- In-app notification centre / push-token registry ------------------------
+
+class PushTokenIn(BaseModel):
+    token: str = Field(..., min_length=8, max_length=512)
+    platform: str = Field("android", pattern=r"^(android|ios)$")
+
+
+class AppNotification(BaseModel):
+    id: str
+    alert_id: str
+    severity: WarningSeverity
+    event_type: str
+    headline: str
+    body: str
+    region: str
+    read: bool = False
+    created_at: datetime
+
+
+class NotificationListOut(BaseModel):
+    user_id: str
+    unread: int = 0
+    items: list[AppNotification] = []
+
+
+# ---- DPDP portability ---------------------------------------------------------
+
+class AccountExportOut(BaseModel):
+    """Portability dump (DPDP §8(5)): every record the service holds for a user.
+
+    Credential material (password hash, OTP code hashes) is deliberately
+    excluded; verified contact details are included so the user can see what is
+    stored about them and can migrate it to another service.
+    """
+
+    schema_version: str = "2026-09-12"
+    user_id: str
+    generated_at: datetime
+    account: dict[str, Any] = {}
+    profile: Optional[dict[str, Any]] = None
+    notifications: list[dict[str, Any]] = []
+    push_tokens: list[dict[str, Any]] = []

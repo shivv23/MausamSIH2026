@@ -51,7 +51,7 @@ function runTests() {
   assert(staleInfo.isStale && staleInfo.ageMinutes === 25, '25m old data should be flagged stale');
 
   const offlineInfo = calculateStalenessInfo(freshTime, true);
-  assert(offlineInfo.isStale && offlineInfo.offlineSource === 'watermelondb_cache', 'Offline mode must use watermelondb_cache');
+  assert(offlineInfo.isStale && offlineInfo.offlineSource === 'sqlite_cache', 'Offline mode must use sqlite_cache');
 
   // TEST 4: Ray-Casting Point-in-Polygon Geofence (§5.5)
   // Polygon roughly covering Pune Metro: [ [73.70, 18.44], [73.95, 18.44], [73.95, 18.65], [73.70, 18.65], [73.70, 18.44] ]

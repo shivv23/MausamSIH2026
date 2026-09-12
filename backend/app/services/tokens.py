@@ -1,8 +1,9 @@
 """Stateless, HMAC-signed bearer tokens for mobile API authentication.
 
-Mirrors the admin session-cookie scheme: a base64url JSON payload with an
-``exp`` claim, signed with HMAC-SHA256. Tokens verify fine across uvicorn
-restarts because they are stateless (the signing secret comes from settings).
+Payload carries ``sub`` (user id), ``v`` (token version, matching the server's
+current version for the account) and ``exp``. Bumping an account's token
+version revokes every previously issued token, giving real server-side
+"log out everywhere" and post-reset invalidation without a token server.
 """
 from __future__ import annotations
 
@@ -25,16 +26,20 @@ def _sign(body: str) -> str:
     return base64.urlsafe_b64encode(digest).decode("ascii")
 
 
-def issue_user_token(user_id: str) -> str:
-    """Return a signed bearer token valid for ``settings.api_token_hours``."""
-    payload = {"sub": user_id, "exp": int(time.time()) + settings.api_token_hours * 3600}
+def issue_user_token(user_id: str, token_version: int = 0) -> str:
+    """Return a signed bearer token for ``settings.api_token_hours``."""
+    payload = {
+        "sub": user_id,
+        "v": int(token_version),
+        "exp": int(time.time()) + settings.api_token_hours * 3600,
+    }
     raw = json.dumps(payload, separators=(",", ":"))
     body = base64.urlsafe_b64encode(raw.encode("utf-8")).decode("ascii")
     return f"{body}.{_sign(body)}"
 
 
-def parse_user_token(token: str | None) -> str | None:
-    """Validate + decode a user token. Returns the user id, or None when invalid."""
+def parse_user_token(token: str | None) -> dict | None:
+    """Validate + decode a user token. Returns the payload or None."""
     if not token or "." not in token:
         return None
     body, sig = token.rsplit(".", 1)
@@ -45,6 +50,21 @@ def parse_user_token(token: str | None) -> str | None:
     except Exception:
         return None
     if int(payload.get("exp", 0)) < int(time.time()):
+        return None
+    return payload
+
+
+def validate_user_token(token: str | None, expected_version: int) -> str | None:
+    """Like :func:`parse_user_token` but also requires the token version to
+    match the server's current version for the account.
+
+    Returns the user id when the token is cryptographically valid, unexpired
+    AND not revoked by a version bump; otherwise None.
+    """
+    payload = parse_user_token(token)
+    if payload is None:
+        return None
+    if int(payload.get("v", -1)) != int(expected_version):
         return None
     sub = payload.get("sub")
     return sub if isinstance(sub, str) else None

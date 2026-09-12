@@ -1,0 +1,26 @@
+appId: host.exp.Exponent
+name: auth-and-onboarding
+# Signs in via offline-demo mode and completes the DPDP consent onboarding.
+# No backend required (demo mode is served purely from the emulator).
+---
+- launchApp:
+    clearState: false
+    stopApp: true
+- extendedWaitUntil:
+    visible: "Welcome to Mausam"
+    timeout: 20000
+- tapOn: "Continue without account (offline demo)"
+- extendedWaitUntil:
+    visible: "Weather that understands you"
+    timeout: 15000
+# Pick a persona (Fitness card) then finish onboarding.
+- tapOn: "Fitness"
+- scrollUntilVisible:
+    element:
+      text: "Accept & continue"
+    direction: DOWN
+    timeout: 10000
+- tapOn: "Accept & continue"
+- extendedWaitUntil:
+    visible: "Home"
+    timeout: 15000

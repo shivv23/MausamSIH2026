@@ -9,7 +9,6 @@ import math
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, func, select, update
-from sqlalchemy.dialects.postgresql import JSONB
 
 from app.db import get_session
 from app.models.orm import ActivityRow, AdminUserRow, AlertRow, UserRow

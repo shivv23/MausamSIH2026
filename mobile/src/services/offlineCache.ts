@@ -1,15 +1,13 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Homepage, Lang, Severity, Card } from '../engine';
 import type { DisasterAlertWithPolygon, GeoPoint, GeoPolygon, StalenessInfo } from '../types';
+import { countSnapshots, databaseEngineLabel, kvGet, kvSet, kvRemove, loadSnapshot, saveSnapshot, setSnapshotCount } from './db';
 
 const CACHE_HOMEPAGE_KEY = '@mausam/cache_homepage';
-const CACHE_WARNINGS_KEY = '@mausam/cache_warnings';
-const CACHE_RADAR_KEY = '@mausam/cache_radar';
 const CACHE_META_KEY = '@mausam/cache_metadata';
 
 export interface CacheMetadata {
   lastSyncIso: string;
-  cacheEngine: 'WatermelonDB_v3' | 'Drift_SQLite_v2';
+  cacheEngine: string;
   totalSnapshots: number;
   offlineModeSimulated: boolean;
   networkConnected: boolean;
@@ -17,42 +15,38 @@ export interface CacheMetadata {
 
 const DEFAULT_META: CacheMetadata = {
   lastSyncIso: new Date(Date.now() - 1000 * 60 * 42).toISOString(), // pre-seed with 42 min ago for demo realism
-  cacheEngine: 'WatermelonDB_v3',
+  cacheEngine: databaseEngineLabel(),
   totalSnapshots: 1,
   offlineModeSimulated: false,
   networkConnected: true,
 };
 
 /**
- * Persists the entire calculated or fetched homepage to the local offline database
+ * Persists the entire calculated or fetched homepage to the local SQLite
+ * offline database (snapshots table).
  */
 export async function saveHomepageToOfflineCache(hp: Homepage): Promise<void> {
   try {
+    await saveSnapshot('homepage', hp, '2.0.0');
     const nowIso = new Date().toISOString();
-    const payload = {
-      hp,
-      timestamp: nowIso,
-      version: '2.0.0',
-    };
-    await AsyncStorage.setItem(CACHE_HOMEPAGE_KEY, JSON.stringify(payload));
-
     const meta = await getCacheMetadata();
     meta.lastSyncIso = nowIso;
-    meta.totalSnapshots += 1;
-    await AsyncStorage.setItem(CACHE_META_KEY, JSON.stringify(meta));
+    meta.cacheEngine = databaseEngineLabel();
+    meta.totalSnapshots = (await countSnapshots()) || meta.totalSnapshots + 1;
+    await kvSet(CACHE_META_KEY, JSON.stringify(meta));
   } catch (err) {
     console.error('[OfflineCache] Failed to persist homepage:', err);
   }
 }
 
 /**
- * Loads the cached homepage snapshot from local storage
+ * Loads the cached homepage snapshot from the local SQLite database.
  */
 export async function loadHomepageFromOfflineCache(): Promise<{ hp: Homepage; timestamp: string } | null> {
   try {
-    const raw = await AsyncStorage.getItem(CACHE_HOMEPAGE_KEY);
-    if (raw) {
-      return JSON.parse(raw);
+    const snap = await loadSnapshot<Homepage>('homepage');
+    if (snap?.payload) {
+      return { hp: snap.payload, timestamp: snap.timestamp };
     }
   } catch (err) {
     console.warn('[OfflineCache] Failed to load cached homepage:', err);
@@ -61,43 +55,46 @@ export async function loadHomepageFromOfflineCache(): Promise<{ hp: Homepage; ti
 }
 
 /**
- * Wipe every offline cache key (homepage snapshot, warnings, radar, metadata).
+ * Wipe every offline cache snapshot (homepage, warnings, radar, metadata).
  * Used when the user redoes onboarding so the previous user's cached health /
  * location data can never be resurrected on a shared device.
  */
 export async function clearOfflineCache(): Promise<void> {
-  const keys = [CACHE_HOMEPAGE_KEY, CACHE_WARNINGS_KEY, CACHE_RADAR_KEY, CACHE_META_KEY];
-  await Promise.all(keys.map((k) => AsyncStorage.removeItem(k)));
+  await kvRemove(CACHE_HOMEPAGE_KEY);
+  await kvRemove('@mausam/cache_warnings');
+  await kvRemove('@mausam/cache_radar');
+  await kvRemove(CACHE_META_KEY);
+  await setSnapshotCount(0);
 }
 
 /**
- * Get cache metadata and engine status
+ * Get cache metadata and engine status.
  */
 export async function getCacheMetadata(): Promise<CacheMetadata> {
   try {
-    const raw = await AsyncStorage.getItem(CACHE_META_KEY);
+    const raw = await kvGet(CACHE_META_KEY);
     if (raw) {
-      return { ...DEFAULT_META, ...JSON.parse(raw) };
+      return { ...DEFAULT_META, cacheEngine: databaseEngineLabel(), ...JSON.parse(raw) };
     }
   } catch {
     // fallback
   }
-  return { ...DEFAULT_META };
+  return { ...DEFAULT_META, cacheEngine: databaseEngineLabel() };
 }
 
 /**
- * Toggle offline simulation state (Airplane Mode)
+ * Toggle offline simulation state (Airplane Mode).
  */
 export async function setOfflineModeSimulated(simulated: boolean): Promise<CacheMetadata> {
   const meta = await getCacheMetadata();
   meta.offlineModeSimulated = simulated;
   meta.networkConnected = !simulated;
-  await AsyncStorage.setItem(CACHE_META_KEY, JSON.stringify(meta));
+  await kvSet(CACHE_META_KEY, JSON.stringify(meta));
   return meta;
 }
 
 /**
- * Evaluates staleness based on IMD data freshness threshold (15 minutes)
+ * Evaluates staleness based on IMD data freshness threshold (15 minutes).
  */
 export function calculateStalenessInfo(syncIso: string, isOffline: boolean): StalenessInfo {
   const lastSyncTime = new Date(syncIso).getTime();
@@ -112,8 +109,8 @@ export function calculateStalenessInfo(syncIso: string, isOffline: boolean): Sta
   let lastUpdatedLabelHi = `${ageMinutes} मिनट पहले · लाइव`;
 
   if (isOffline) {
-    lastUpdatedLabel = `Cached ${ageMinutes}m ago · WatermelonDB`;
-    lastUpdatedLabelHi = `कैश ${ageMinutes} मिनट पहले · वॉटरमेलन-डीबी`;
+    lastUpdatedLabel = `Cached ${ageMinutes}m ago · SQLite`;
+    lastUpdatedLabelHi = `कैश ${ageMinutes} मिनट पहले · SQLite`;
   } else if (ageMinutes >= 15) {
     lastUpdatedLabel = `Cached ${ageMinutes}m ago (Stale >15m)`;
     lastUpdatedLabelHi = `कैश ${ageMinutes} मिनट पहले (पुराना >15मि.)`;
@@ -125,12 +122,12 @@ export function calculateStalenessInfo(syncIso: string, isOffline: boolean): Sta
     ageMinutes,
     lastUpdatedLabel,
     lastUpdatedLabelHi,
-    offlineSource: isOffline ? 'watermelondb_cache' : 'network',
+    offlineSource: isOffline ? 'sqlite_cache' : 'network',
   };
 }
 
 /**
- * Ray-casting Point-in-Polygon check for offline geofencing (§5.5, §8.4)
+ * Ray-casting Point-in-Polygon check for offline geofencing (§5.5, §8.4).
  */
 export function isPointInGeofence(lat: number, lon: number, polygon: GeoPolygon): boolean {
   const ring = polygon.coordinates;
@@ -150,7 +147,7 @@ export function isPointInGeofence(lat: number, lon: number, polygon: GeoPolygon)
 }
 
 /**
- * Evaluates active cached warnings against the user's location even with zero network
+ * Evaluates active cached warnings against the user's location even with zero network.
  */
 export function evaluateOfflineGeofences(
   userLat: number,

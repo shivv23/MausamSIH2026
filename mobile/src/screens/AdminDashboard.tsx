@@ -423,7 +423,7 @@ export default function AdminDashboard({
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardTitle}>✈️ {t(lang, 'admin_offline_toggle')}</Text>
                 <Text style={styles.cardSub}>
-                  {L(lang, 'Test WatermelonDB offline storage & staleness marker', 'वॉटरमेलन-डीबी ऑफ़लाइन स्टोरेज व स्टेलनेस मार्कर जाँचें')}
+                  {L(lang, 'Test SQLite offline storage & staleness marker', 'SQLite ऑफ़लाइन स्टोरेज व स्टेलनेस मार्कर जाँचें')}
                 </Text>
               </View>
               <Switch

@@ -1,0 +1,3965 @@
+{
+ "openapi": "3.1.0",
+ "info": {
+  "title": "Mausam 2.0 - Personalized Weather Intelligence",
+  "description": "Mausam 2.0 - a Personalized Weather Intelligence Engine on official IMD/MoES data. Personalized homepage cards for the 'Mausam' app (SIH 2026 PS 26076).",
+  "version": "0.1.0"
+ },
+ "paths": {
+  "/api/v1/homepage/cards": {
+   "get": {
+    "tags": [
+     "homepage"
+    ],
+    "summary": "Homepage Cards",
+    "operationId": "homepage_cards_api_v1_homepage_cards_get",
+    "parameters": [
+     {
+      "name": "user_id",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "description": "User identifier",
+       "title": "User Id"
+      },
+      "description": "User identifier"
+     },
+     {
+      "name": "city",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "City anchor for personalization",
+       "default": "pune",
+       "title": "City"
+      },
+      "description": "City anchor for personalization"
+     },
+     {
+      "name": "scenario",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Demo scenario override (see scenarios)",
+       "title": "Scenario"
+      },
+      "description": "Demo scenario override (see scenarios)"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HomepageResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/homepage/scenarios": {
+   "get": {
+    "tags": [
+     "homepage"
+    ],
+    "summary": "Scenarios",
+    "operationId": "scenarios_api_v1_homepage_scenarios_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": {
+          "items": {
+           "type": "string"
+          },
+          "type": "array"
+         },
+         "type": "object",
+         "title": "Response Scenarios Api V1 Homepage Scenarios Get"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/ask": {
+   "post": {
+    "tags": [
+     "ask"
+    ],
+    "summary": "Ask",
+    "operationId": "ask_api_v1_ask_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AskRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AskResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/activities": {
+   "get": {
+    "tags": [
+     "activities"
+    ],
+    "summary": "List Activities",
+    "operationId": "list_activities_api_v1_activities_get",
+    "parameters": [
+     {
+      "name": "user_id",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "User Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/Activity"
+         },
+         "title": "Response List Activities Api V1 Activities Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "activities"
+    ],
+    "summary": "Create Activity",
+    "operationId": "create_activity_api_v1_activities_post",
+    "parameters": [
+     {
+      "name": "user_id",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "User Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ActivityInput"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Activity"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/activities/{activity_id}": {
+   "delete": {
+    "tags": [
+     "activities"
+    ],
+    "summary": "Delete Activity",
+    "operationId": "delete_activity_api_v1_activities__activity_id__delete",
+    "parameters": [
+     {
+      "name": "activity_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Activity Id"
+      }
+     },
+     {
+      "name": "user_id",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "User Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "additionalProperties": {
+          "type": "integer"
+         },
+         "title": "Response Delete Activity Api V1 Activities  Activity Id  Delete"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/my-day": {
+   "get": {
+    "tags": [
+     "activities"
+    ],
+    "summary": "My Day",
+    "operationId": "my_day_api_v1_my_day_get",
+    "parameters": [
+     {
+      "name": "user_id",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "User Id"
+      }
+     },
+     {
+      "name": "city",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": "pune",
+       "title": "City"
+      }
+     },
+     {
+      "name": "scenario",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Scenario"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MyDayResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/weather-risk": {
+   "post": {
+    "tags": [
+     "risk"
+    ],
+    "summary": "Weather Risk",
+    "operationId": "weather_risk_api_v1_weather_risk_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RiskRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "title": "Response Weather Risk Api V1 Weather Risk Post"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/alerts": {
+   "get": {
+    "tags": [
+     "alerts"
+    ],
+    "summary": "Alerts",
+    "operationId": "alerts_api_v1_alerts_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/AlertSummary"
+         },
+         "type": "array",
+         "title": "Response Alerts Api V1 Alerts Get"
+        }
+       }
+      }
+     }
+    }
+   },
+   "delete": {
+    "tags": [
+     "alerts"
+    ],
+    "summary": "Clear",
+    "operationId": "clear_api_v1_alerts_delete",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": {
+          "type": "integer"
+         },
+         "type": "object",
+         "title": "Response Clear Api V1 Alerts Delete"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/alerts/simulate": {
+   "post": {
+    "tags": [
+     "alerts"
+    ],
+    "summary": "Simulate",
+    "operationId": "simulate_api_v1_alerts_simulate_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AlertSimulationRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SimulationResult"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/auth/register": {
+   "post": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Register",
+    "operationId": "register_api_v1_auth_register_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RegisterRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AuthOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/auth/login": {
+   "post": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Login",
+    "operationId": "login_api_v1_auth_login_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/app__models__schemas__LoginRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AuthOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/auth/logout-all": {
+   "post": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Logout All",
+    "description": "Revoke every token ever issued for the authenticated account.",
+    "operationId": "logout_all_api_v1_auth_logout_all_post",
+    "parameters": [
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AuthOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/auth/account": {
+   "delete": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Delete Account",
+    "description": "Permanently erase the account and every associated record (DPDP erasure).\n\nRemoves the credential, the cloud profile backup, the in-app alert inbox\nand all registered push tokens. The client is expected to also wipe local\ndevice state after a successful response.",
+    "operationId": "delete_account_api_v1_auth_account_delete",
+    "parameters": [
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "title": "Response Delete Account Api V1 Auth Account Delete"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/auth/request-otp": {
+   "post": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Request Otp",
+    "operationId": "request_otp_api_v1_auth_request_otp_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/OtpRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/OtpOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/auth/verify-otp": {
+   "post": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Verify Otp",
+    "operationId": "verify_otp_api_v1_auth_verify_otp_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/OtpVerifyRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AuthOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/auth/reset-password": {
+   "post": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Reset Password",
+    "description": "Recover an account with a reset OTP; invalidates all prior tokens.",
+    "operationId": "reset_password_api_v1_auth_reset_password_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ResetPasswordRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AuthOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/users/{user_id}/profile": {
+   "get": {
+    "tags": [
+     "users"
+    ],
+    "summary": "Get Profile",
+    "operationId": "get_profile_api_v1_users__user_id__profile_get",
+    "parameters": [
+     {
+      "name": "user_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "User Id"
+      }
+     },
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProfileSyncOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "put": {
+    "tags": [
+     "users"
+    ],
+    "summary": "Put Profile",
+    "operationId": "put_profile_api_v1_users__user_id__profile_put",
+    "parameters": [
+     {
+      "name": "user_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "User Id"
+      }
+     },
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ProfileSync"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProfileSyncOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "delete": {
+    "tags": [
+     "users"
+    ],
+    "summary": "Delete Profile",
+    "description": "Permanently remove this user's cloud backup (right-to-erasure).",
+    "operationId": "delete_profile_api_v1_users__user_id__profile_delete",
+    "parameters": [
+     {
+      "name": "user_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "User Id"
+      }
+     },
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "title": "Response Delete Profile Api V1 Users  User Id  Profile Delete"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/users/{user_id}/push-token": {
+   "post": {
+    "tags": [
+     "users"
+    ],
+    "summary": "Register Push Token",
+    "description": "Register the device's Expo/FCM push token for server->device alerts.",
+    "operationId": "register_push_token_api_v1_users__user_id__push_token_post",
+    "parameters": [
+     {
+      "name": "user_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "User Id"
+      }
+     },
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PushTokenIn"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "title": "Response Register Push Token Api V1 Users  User Id  Push Token Post"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "delete": {
+    "tags": [
+     "users"
+    ],
+    "summary": "Unregister Push Token",
+    "operationId": "unregister_push_token_api_v1_users__user_id__push_token_delete",
+    "parameters": [
+     {
+      "name": "user_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "User Id"
+      }
+     },
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PushTokenIn"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "title": "Response Unregister Push Token Api V1 Users  User Id  Push Token Delete"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/users/{user_id}/notifications": {
+   "get": {
+    "tags": [
+     "users"
+    ],
+    "summary": "List Notifications",
+    "description": "The durable alert inbox for this user (server-side archive).",
+    "operationId": "list_notifications_api_v1_users__user_id__notifications_get",
+    "parameters": [
+     {
+      "name": "user_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "User Id"
+      }
+     },
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/NotificationListOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/users/{user_id}/notifications/{notification_id}/ack": {
+   "post": {
+    "tags": [
+     "users"
+    ],
+    "summary": "Ack Notification",
+    "description": "Mark a single archive entry as read (clears its unread badge).",
+    "operationId": "ack_notification_api_v1_users__user_id__notifications__notification_id__ack_post",
+    "parameters": [
+     {
+      "name": "user_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "User Id"
+      }
+     },
+     {
+      "name": "notification_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Notification Id"
+      }
+     },
+     {
+      "name": "authorization",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "title": "Response Ack Notification Api V1 Users  User Id  Notifications  Notification Id  Ack Post"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/admin/login": {
+   "post": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Login",
+    "operationId": "login_api_admin_login_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/app__admin__router__LoginRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/admin/logout": {
+   "post": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Logout",
+    "operationId": "logout_api_admin_logout_post",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/admin/me": {
+   "get": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Me",
+    "operationId": "me_api_admin_me_get",
+    "parameters": [
+     {
+      "name": "mausam_admin_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Mausam Admin Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/admin/overview": {
+   "get": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Overview",
+    "operationId": "overview_api_admin_overview_get",
+    "parameters": [
+     {
+      "name": "mausam_admin_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Mausam Admin Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/admin/users": {
+   "get": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "List Users",
+    "operationId": "list_users_api_admin_users_get",
+    "parameters": [
+     {
+      "name": "q",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Q"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "default": 200,
+       "title": "Limit"
+      }
+     },
+     {
+      "name": "offset",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "default": 0,
+       "title": "Offset"
+      }
+     },
+     {
+      "name": "mausam_admin_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Mausam Admin Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/admin/users/{user_id}": {
+   "get": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Get User",
+    "operationId": "get_user_api_admin_users__user_id__get",
+    "parameters": [
+     {
+      "name": "user_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "User Id"
+      }
+     },
+     {
+      "name": "mausam_admin_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Mausam Admin Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "put": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Update User",
+    "operationId": "update_user_api_admin_users__user_id__put",
+    "parameters": [
+     {
+      "name": "user_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "User Id"
+      }
+     },
+     {
+      "name": "mausam_admin_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Mausam Admin Session"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/UserUpdate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "delete": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Delete User",
+    "operationId": "delete_user_api_admin_users__user_id__delete",
+    "parameters": [
+     {
+      "name": "user_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "User Id"
+      }
+     },
+     {
+      "name": "mausam_admin_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Mausam Admin Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/admin/users/{user_id}/activities": {
+   "get": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "List Activities",
+    "operationId": "list_activities_api_admin_users__user_id__activities_get",
+    "parameters": [
+     {
+      "name": "user_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "User Id"
+      }
+     },
+     {
+      "name": "mausam_admin_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Mausam Admin Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/admin/users/{user_id}/activities/{activity_id}": {
+   "delete": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Delete Activity",
+    "operationId": "delete_activity_api_admin_users__user_id__activities__activity_id__delete",
+    "parameters": [
+     {
+      "name": "user_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "User Id"
+      }
+     },
+     {
+      "name": "activity_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Activity Id"
+      }
+     },
+     {
+      "name": "mausam_admin_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Mausam Admin Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/admin/alerts": {
+   "get": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "List Alerts",
+    "operationId": "list_alerts_api_admin_alerts_get",
+    "parameters": [
+     {
+      "name": "mausam_admin_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Mausam Admin Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Create Alert",
+    "operationId": "create_alert_api_admin_alerts_post",
+    "parameters": [
+     {
+      "name": "mausam_admin_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Mausam Admin Session"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AlertCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/admin/alerts/{alert_id}": {
+   "put": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Update Alert",
+    "operationId": "update_alert_api_admin_alerts__alert_id__put",
+    "parameters": [
+     {
+      "name": "alert_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Alert Id"
+      }
+     },
+     {
+      "name": "mausam_admin_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Mausam Admin Session"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AlertUpdate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "delete": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Delete Alert",
+    "operationId": "delete_alert_api_admin_alerts__alert_id__delete",
+    "parameters": [
+     {
+      "name": "alert_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Alert Id"
+      }
+     },
+     {
+      "name": "mausam_admin_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Mausam Admin Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/admin/alerts/{alert_id}/impact": {
+   "get": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Alert Impact",
+    "operationId": "alert_impact_api_admin_alerts__alert_id__impact_get",
+    "parameters": [
+     {
+      "name": "alert_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Alert Id"
+      }
+     },
+     {
+      "name": "mausam_admin_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Mausam Admin Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/admin/push/broadcast": {
+   "post": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Push Broadcast",
+    "description": "Send a push notification to every registered device (operator demo).",
+    "operationId": "push_broadcast_api_admin_push_broadcast_post",
+    "parameters": [
+     {
+      "name": "mausam_admin_session",
+      "in": "cookie",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Mausam Admin Session"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PushBroadcast"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/health": {
+   "get": {
+    "tags": [
+     "meta"
+    ],
+    "summary": "Health",
+    "operationId": "health_health_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": {
+          "type": "string"
+         },
+         "type": "object",
+         "title": "Response Health Health Get"
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "components": {
+  "schemas": {
+   "Activity": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "type": {
+      "$ref": "#/components/schemas/ActivityType"
+     },
+     "label": {
+      "type": "string",
+      "title": "Label",
+      "default": ""
+     },
+     "days": {
+      "items": {
+       "type": "integer"
+      },
+      "type": "array",
+      "title": "Days",
+      "default": []
+     },
+     "preferred_start": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Preferred Start"
+     },
+     "preferred_end": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Preferred End"
+     },
+     "loc": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/GeoPoint"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "type"
+    ],
+    "title": "Activity"
+   },
+   "ActivityInput": {
+    "properties": {
+     "type": {
+      "$ref": "#/components/schemas/ActivityType"
+     },
+     "label": {
+      "type": "string",
+      "title": "Label",
+      "default": ""
+     },
+     "days": {
+      "items": {
+       "type": "integer"
+      },
+      "type": "array",
+      "title": "Days",
+      "default": []
+     },
+     "preferred_start": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Preferred Start"
+     },
+     "preferred_end": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Preferred End"
+     },
+     "location": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/GeoPoint"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "type": "object",
+    "required": [
+     "type"
+    ],
+    "title": "ActivityInput"
+   },
+   "ActivityType": {
+    "type": "string",
+    "enum": [
+     "run",
+     "cycle",
+     "outdoor_gym",
+     "commute",
+     "school",
+     "farm_irrigation",
+     "farm_frost",
+     "farm_planting",
+     "beach",
+     "surf",
+     "event",
+     "travel"
+    ],
+    "title": "ActivityType"
+   },
+   "ActivityWindow": {
+    "properties": {
+     "activity": {
+      "$ref": "#/components/schemas/ActivityType"
+     },
+     "start": {
+      "type": "string",
+      "title": "Start"
+     },
+     "end": {
+      "type": "string",
+      "title": "End"
+     },
+     "score": {
+      "type": "number",
+      "maximum": 100.0,
+      "minimum": 0.0,
+      "title": "Score"
+     },
+     "level": {
+      "type": "string",
+      "title": "Level"
+     },
+     "summary": {
+      "type": "string",
+      "title": "Summary",
+      "default": ""
+     },
+     "factors": {
+      "items": {
+       "$ref": "#/components/schemas/FactorScore"
+      },
+      "type": "array",
+      "title": "Factors",
+      "default": []
+     }
+    },
+    "type": "object",
+    "required": [
+     "activity",
+     "start",
+     "end",
+     "score",
+     "level"
+    ],
+    "title": "ActivityWindow",
+    "description": "A graded time slot for an activity within a day."
+   },
+   "AlertCreate": {
+    "properties": {
+     "severity": {
+      "type": "string",
+      "title": "Severity",
+      "default": "orange"
+     },
+     "event_type": {
+      "type": "string",
+      "title": "Event Type",
+      "default": "heavy_rain"
+     },
+     "headline": {
+      "type": "string",
+      "title": "Headline",
+      "default": "Heavy rain expected"
+     },
+     "detail": {
+      "type": "string",
+      "title": "Detail",
+      "default": ""
+     },
+     "region": {
+      "type": "string",
+      "title": "Region",
+      "default": "Pune"
+     },
+     "impact": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Impact",
+      "default": []
+     },
+     "valid_hours": {
+      "type": "integer",
+      "title": "Valid Hours",
+      "default": 24
+     },
+     "radius_km": {
+      "type": "number",
+      "title": "Radius Km",
+      "default": 40.0
+     }
+    },
+    "type": "object",
+    "title": "AlertCreate"
+   },
+   "AlertPhase": {
+    "type": "string",
+    "enum": [
+     "official",
+     "derived",
+     "informational"
+    ],
+    "title": "AlertPhase"
+   },
+   "AlertSimulationRequest": {
+    "properties": {
+     "severity": {
+      "$ref": "#/components/schemas/WarningSeverity",
+      "default": "orange"
+     },
+     "event_type": {
+      "type": "string",
+      "title": "Event Type",
+      "default": "heavy_rain"
+     },
+     "headline": {
+      "type": "string",
+      "title": "Headline",
+      "default": "Heavy rain expected"
+     },
+     "detail": {
+      "type": "string",
+      "title": "Detail",
+      "default": ""
+     },
+     "region": {
+      "type": "string",
+      "title": "Region",
+      "default": "Pune"
+     },
+     "impact": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Impact",
+      "default": [
+       "flooding on low-lying roads",
+       "traffic disruption",
+       "tree fall risk"
+      ]
+     },
+     "valid_hours": {
+      "type": "integer",
+      "maximum": 168.0,
+      "minimum": 1.0,
+      "title": "Valid Hours",
+      "default": 24
+     },
+     "center": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/GeoPoint"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "radius_km": {
+      "anyOf": [
+       {
+        "type": "number",
+        "maximum": 500.0,
+        "minimum": 1.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Radius Km"
+     }
+    },
+    "type": "object",
+    "title": "AlertSimulationRequest"
+   },
+   "AlertSummary": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "severity": {
+      "$ref": "#/components/schemas/WarningSeverity"
+     },
+     "event_type": {
+      "type": "string",
+      "title": "Event Type"
+     },
+     "headline": {
+      "type": "string",
+      "title": "Headline"
+     },
+     "region": {
+      "type": "string",
+      "title": "Region"
+     },
+     "issued_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Issued At"
+     },
+     "valid_until": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Valid Until"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "severity",
+     "event_type",
+     "headline",
+     "region",
+     "issued_at",
+     "valid_until"
+    ],
+    "title": "AlertSummary"
+   },
+   "AlertUpdate": {
+    "properties": {
+     "severity": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Severity"
+     },
+     "event_type": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Event Type"
+     },
+     "headline": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Headline"
+     },
+     "detail": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Detail"
+     },
+     "region": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Region"
+     },
+     "valid_hours": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Valid Hours"
+     }
+    },
+    "type": "object",
+    "title": "AlertUpdate"
+   },
+   "AppNotification": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "alert_id": {
+      "type": "string",
+      "title": "Alert Id"
+     },
+     "severity": {
+      "$ref": "#/components/schemas/WarningSeverity"
+     },
+     "event_type": {
+      "type": "string",
+      "title": "Event Type"
+     },
+     "headline": {
+      "type": "string",
+      "title": "Headline"
+     },
+     "body": {
+      "type": "string",
+      "title": "Body"
+     },
+     "region": {
+      "type": "string",
+      "title": "Region"
+     },
+     "read": {
+      "type": "boolean",
+      "title": "Read",
+      "default": false
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "alert_id",
+     "severity",
+     "event_type",
+     "headline",
+     "body",
+     "region",
+     "created_at"
+    ],
+    "title": "AppNotification"
+   },
+   "AskIntent": {
+    "type": "string",
+    "enum": [
+     "should_i_run",
+     "should_i_travel",
+     "should_i_irrigate",
+     "beach_safety",
+     "school_commute",
+     "outdoor_event",
+     "frost_risk",
+     "general_brief"
+    ],
+    "title": "AskIntent"
+   },
+   "AskRequest": {
+    "properties": {
+     "user_id": {
+      "type": "string",
+      "title": "User Id"
+     },
+     "question": {
+      "type": "string",
+      "title": "Question"
+     },
+     "city": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "City",
+      "default": "pune"
+     },
+     "scenario": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Scenario"
+     },
+     "context": {
+      "type": "object",
+      "title": "Context",
+      "default": {}
+     }
+    },
+    "type": "object",
+    "required": [
+     "user_id",
+     "question"
+    ],
+    "title": "AskRequest"
+   },
+   "AskResponse": {
+    "properties": {
+     "intent": {
+      "$ref": "#/components/schemas/AskIntent"
+     },
+     "answer": {
+      "type": "string",
+      "title": "Answer"
+     },
+     "verbatim": {
+      "type": "boolean",
+      "title": "Verbatim",
+      "default": false
+     },
+     "why": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Why",
+      "default": []
+     },
+     "score": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Score"
+     },
+     "level": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Level"
+     },
+     "source": {
+      "$ref": "#/components/schemas/ProviderName"
+     }
+    },
+    "type": "object",
+    "required": [
+     "intent",
+     "answer",
+     "source"
+    ],
+    "title": "AskResponse"
+   },
+   "AuthOut": {
+    "properties": {
+     "user_id": {
+      "type": "string",
+      "title": "User Id"
+     },
+     "token": {
+      "type": "string",
+      "title": "Token"
+     },
+     "verified": {
+      "type": "boolean",
+      "title": "Verified",
+      "default": true
+     },
+     "contact_verification_required": {
+      "type": "boolean",
+      "title": "Contact Verification Required",
+      "default": false
+     },
+     "message": {
+      "type": "string",
+      "title": "Message",
+      "default": "ok"
+     }
+    },
+    "type": "object",
+    "required": [
+     "user_id",
+     "token"
+    ],
+    "title": "AuthOut"
+   },
+   "CardExplanation": {
+    "properties": {
+     "why_shown": {
+      "type": "string",
+      "title": "Why Shown"
+     },
+     "source": {
+      "$ref": "#/components/schemas/ProviderName"
+     },
+     "confidence": {
+      "type": "number",
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Confidence"
+     },
+     "valid_until": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Valid Until"
+     }
+    },
+    "type": "object",
+    "required": [
+     "why_shown",
+     "source",
+     "confidence",
+     "valid_until"
+    ],
+    "title": "CardExplanation"
+   },
+   "CardType": {
+    "type": "string",
+    "enum": [
+     "severe_warning",
+     "my_day",
+     "mausam_brief",
+     "aqi",
+     "uv",
+     "pollen",
+     "humidity",
+     "running_window",
+     "cycling_window",
+     "outdoor_comfort",
+     "school_commute",
+     "work_commute",
+     "rain_timeline",
+     "fog_alert",
+     "farm_irrigation",
+     "farm_frost",
+     "farm_planting",
+     "beach_safety",
+     "tide_info",
+     "surf_conditions",
+     "event_weather",
+     "travel_destination",
+     "packing_advisor",
+     "sunrise_sunset"
+    ],
+    "title": "CardType"
+   },
+   "DisasterAlert": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "severity": {
+      "$ref": "#/components/schemas/WarningSeverity"
+     },
+     "event_type": {
+      "type": "string",
+      "title": "Event Type"
+     },
+     "headline": {
+      "type": "string",
+      "title": "Headline"
+     },
+     "detail": {
+      "type": "string",
+      "title": "Detail",
+      "default": ""
+     },
+     "region": {
+      "type": "string",
+      "title": "Region"
+     },
+     "polygon": {
+      "$ref": "#/components/schemas/GeoPolygon"
+     },
+     "issued_by": {
+      "type": "string",
+      "title": "Issued By",
+      "default": "IMD"
+     },
+     "issued_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Issued At"
+     },
+     "valid_until": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Valid Until"
+     },
+     "actionable": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Actionable",
+      "default": []
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "severity",
+     "event_type",
+     "headline",
+     "region",
+     "polygon",
+     "issued_at",
+     "valid_until"
+    ],
+    "title": "DisasterAlert"
+   },
+   "FactorScore": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "score": {
+      "type": "number",
+      "maximum": 100.0,
+      "minimum": 0.0,
+      "title": "Score"
+     },
+     "weight": {
+      "type": "number",
+      "title": "Weight",
+      "default": 0.0
+     },
+     "detail": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Detail"
+     }
+    },
+    "type": "object",
+    "required": [
+     "name",
+     "score"
+    ],
+    "title": "FactorScore"
+   },
+   "GeoPoint": {
+    "properties": {
+     "lat": {
+      "type": "number",
+      "maximum": 90.0,
+      "minimum": -90.0,
+      "title": "Lat"
+     },
+     "lon": {
+      "type": "number",
+      "maximum": 180.0,
+      "minimum": -180.0,
+      "title": "Lon"
+     },
+     "geohash": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Geohash"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     },
+     "district": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "District"
+     },
+     "state": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "State"
+     }
+    },
+    "type": "object",
+    "required": [
+     "lat",
+     "lon"
+    ],
+    "title": "GeoPoint"
+   },
+   "GeoPolygon": {
+    "properties": {
+     "type": {
+      "type": "string",
+      "title": "Type",
+      "default": "Polygon"
+     },
+     "coordinates": {
+      "items": {
+       "items": {
+        "type": "number"
+       },
+       "type": "array"
+      },
+      "type": "array",
+      "title": "Coordinates",
+      "description": "ring: [[lon,lat],...]"
+     }
+    },
+    "type": "object",
+    "required": [
+     "coordinates"
+    ],
+    "title": "GeoPolygon",
+    "description": "GeoJSON-style polygon (ring of [lon, lat] pairs, closed)."
+   },
+   "HTTPValidationError": {
+    "properties": {
+     "detail": {
+      "items": {
+       "$ref": "#/components/schemas/ValidationError"
+      },
+      "type": "array",
+      "title": "Detail"
+     }
+    },
+    "type": "object",
+    "title": "HTTPValidationError"
+   },
+   "HomepageCard": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "type": {
+      "$ref": "#/components/schemas/CardType"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "summary": {
+      "type": "string",
+      "title": "Summary"
+     },
+     "priority": {
+      "type": "integer",
+      "title": "Priority"
+     },
+     "phase": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/AlertPhase"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "data": {
+      "type": "object",
+      "title": "Data",
+      "default": {}
+     },
+     "explanation": {
+      "$ref": "#/components/schemas/CardExplanation"
+     },
+     "provenance": {
+      "$ref": "#/components/schemas/Provenance"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "type",
+     "title",
+     "summary",
+     "priority",
+     "explanation",
+     "provenance"
+    ],
+    "title": "HomepageCard"
+   },
+   "HomepageResponse": {
+    "properties": {
+     "user_id": {
+      "type": "string",
+      "title": "User Id"
+     },
+     "city": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "City"
+     },
+     "personas": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Personas",
+      "default": []
+     },
+     "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Generated At"
+     },
+     "metadata": {
+      "type": "object",
+      "title": "Metadata",
+      "default": {}
+     },
+     "cards": {
+      "items": {
+       "$ref": "#/components/schemas/HomepageCard"
+      },
+      "type": "array",
+      "title": "Cards"
+     }
+    },
+    "type": "object",
+    "required": [
+     "user_id",
+     "city",
+     "generated_at",
+     "cards"
+    ],
+    "title": "HomepageResponse"
+   },
+   "MyDayResponse": {
+    "properties": {
+     "user_id": {
+      "type": "string",
+      "title": "User Id"
+     },
+     "date": {
+      "type": "string",
+      "title": "Date"
+     },
+     "city": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "City"
+     },
+     "summary": {
+      "type": "string",
+      "title": "Summary"
+     },
+     "best_window": {
+      "type": "string",
+      "title": "Best Window"
+     },
+     "slots": {
+      "items": {
+       "$ref": "#/components/schemas/ActivityWindow"
+      },
+      "type": "array",
+      "title": "Slots",
+      "default": []
+     }
+    },
+    "type": "object",
+    "required": [
+     "user_id",
+     "date",
+     "city",
+     "summary",
+     "best_window"
+    ],
+    "title": "MyDayResponse"
+   },
+   "NotificationListOut": {
+    "properties": {
+     "user_id": {
+      "type": "string",
+      "title": "User Id"
+     },
+     "unread": {
+      "type": "integer",
+      "title": "Unread",
+      "default": 0
+     },
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/AppNotification"
+      },
+      "type": "array",
+      "title": "Items",
+      "default": []
+     }
+    },
+    "type": "object",
+    "required": [
+     "user_id"
+    ],
+    "title": "NotificationListOut"
+   },
+   "OtpOut": {
+    "properties": {
+     "user_id": {
+      "type": "string",
+      "title": "User Id"
+     },
+     "purpose": {
+      "$ref": "#/components/schemas/OtpPurpose"
+     },
+     "sent_to": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Sent To"
+     },
+     "ttl_minutes": {
+      "type": "integer",
+      "title": "Ttl Minutes"
+     },
+     "dev_code": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Dev Code"
+     }
+    },
+    "type": "object",
+    "required": [
+     "user_id",
+     "purpose",
+     "ttl_minutes"
+    ],
+    "title": "OtpOut"
+   },
+   "OtpPurpose": {
+    "type": "string",
+    "enum": [
+     "verify_email",
+     "verify_phone",
+     "reset_password"
+    ],
+    "title": "OtpPurpose"
+   },
+   "OtpRequest": {
+    "properties": {
+     "user_id": {
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 2,
+      "pattern": "^[A-Za-z0-9_.-]+$",
+      "title": "User Id"
+     },
+     "purpose": {
+      "$ref": "#/components/schemas/OtpPurpose"
+     },
+     "contact": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 254
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Contact"
+     }
+    },
+    "type": "object",
+    "required": [
+     "user_id",
+     "purpose"
+    ],
+    "title": "OtpRequest",
+    "description": "Ask the server to generate + deliver a one-time-password.\n\n``contact`` is only needed when binding a contact during registration that\nwas not supplied there (it must match the account's own contact otherwise)."
+   },
+   "OtpVerifyRequest": {
+    "properties": {
+     "user_id": {
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 2,
+      "pattern": "^[A-Za-z0-9_.-]+$",
+      "title": "User Id"
+     },
+     "purpose": {
+      "$ref": "#/components/schemas/OtpPurpose"
+     },
+     "code": {
+      "type": "string",
+      "maxLength": 8,
+      "minLength": 4,
+      "pattern": "^[0-9]{4,8}$",
+      "title": "Code"
+     }
+    },
+    "type": "object",
+    "required": [
+     "user_id",
+     "purpose",
+     "code"
+    ],
+    "title": "OtpVerifyRequest"
+   },
+   "ProfileSync": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name",
+      "default": ""
+     },
+     "name_hi": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name Hi"
+     },
+     "personas": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Personas",
+      "default": []
+     },
+     "conditions": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Conditions",
+      "default": []
+     },
+     "activities": {
+      "items": {
+       "$ref": "#/components/schemas/SyncActivity"
+      },
+      "type": "array",
+      "title": "Activities",
+      "default": []
+     },
+     "locations": {
+      "items": {
+       "$ref": "#/components/schemas/SyncLocation"
+      },
+      "type": "array",
+      "title": "Locations",
+      "default": []
+     },
+     "city": {
+      "type": "string",
+      "title": "City",
+      "default": "pune"
+     },
+     "language": {
+      "type": "string",
+      "title": "Language",
+      "default": "en"
+     },
+     "behavior_bias": {
+      "additionalProperties": {
+       "type": "number"
+      },
+      "type": "object",
+      "title": "Behavior Bias",
+      "default": {}
+     }
+    },
+    "type": "object",
+    "required": [
+     "id"
+    ],
+    "title": "ProfileSync",
+    "description": "The mobile UserProfile payload used to move a profile between devices.\n\nThe client stores this locally (AsyncStorage) and can PUT it to the server,\nthen GET it back on another device to restore the same experience."
+   },
+   "ProfileSyncOut": {
+    "properties": {
+     "user_id": {
+      "type": "string",
+      "title": "User Id"
+     },
+     "profile": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/ProfileSync"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "updated_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Updated At"
+     }
+    },
+    "type": "object",
+    "required": [
+     "user_id"
+    ],
+    "title": "ProfileSyncOut"
+   },
+   "Provenance": {
+    "properties": {
+     "source": {
+      "$ref": "#/components/schemas/ProviderName"
+     },
+     "issued_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Issued At"
+     },
+     "valid_from": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Valid From"
+     },
+     "valid_until": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Valid Until"
+     },
+     "licence": {
+      "type": "string",
+      "title": "Licence",
+      "default": "CC-BY-4.0 (open govt); verify terms per SIH"
+     },
+     "raw_payload_ref": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Raw Payload Ref"
+     }
+    },
+    "type": "object",
+    "required": [
+     "source",
+     "issued_at",
+     "valid_from",
+     "valid_until"
+    ],
+    "title": "Provenance",
+    "description": "Attribution + validity carried on every piece of weather data/card."
+   },
+   "ProviderName": {
+    "type": "string",
+    "enum": [
+     "imd",
+     "cpcb",
+     "incois",
+     "isro",
+     "open_meteo",
+     "mock",
+     "crowdsource"
+    ],
+    "title": "ProviderName"
+   },
+   "PushBroadcast": {
+    "properties": {
+     "title": {
+      "type": "string",
+      "title": "Title",
+      "default": "Mausam"
+     },
+     "body": {
+      "type": "string",
+      "title": "Body",
+      "default": ""
+     },
+     "region": {
+      "type": "string",
+      "title": "Region",
+      "default": "All India"
+     },
+     "severity": {
+      "type": "string",
+      "title": "Severity",
+      "default": "yellow"
+     }
+    },
+    "type": "object",
+    "title": "PushBroadcast"
+   },
+   "PushTarget": {
+    "properties": {
+     "user_id": {
+      "type": "string",
+      "title": "User Id"
+     },
+     "registered_city": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Registered City"
+     },
+     "in_polygon": {
+      "type": "boolean",
+      "title": "In Polygon"
+     },
+     "headline": {
+      "type": "string",
+      "title": "Headline"
+     },
+     "body": {
+      "type": "string",
+      "title": "Body"
+     },
+     "fcm_payload": {
+      "type": "object",
+      "title": "Fcm Payload",
+      "default": {}
+     }
+    },
+    "type": "object",
+    "required": [
+     "user_id",
+     "registered_city",
+     "in_polygon",
+     "headline",
+     "body"
+    ],
+    "title": "PushTarget"
+   },
+   "PushTokenIn": {
+    "properties": {
+     "token": {
+      "type": "string",
+      "maxLength": 512,
+      "minLength": 8,
+      "title": "Token"
+     },
+     "platform": {
+      "type": "string",
+      "pattern": "^(android|ios)$",
+      "title": "Platform",
+      "default": "android"
+     }
+    },
+    "type": "object",
+    "required": [
+     "token"
+    ],
+    "title": "PushTokenIn"
+   },
+   "RegisterRequest": {
+    "properties": {
+     "user_id": {
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 2,
+      "pattern": "^[A-Za-z0-9_.-]+$",
+      "title": "User Id"
+     },
+     "password": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 6,
+      "title": "Password"
+     },
+     "email": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 254,
+        "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Email"
+     },
+     "phone": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 20,
+        "pattern": "^\\+?[0-9]{10,15}$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Phone"
+     }
+    },
+    "type": "object",
+    "required": [
+     "user_id",
+     "password"
+    ],
+    "title": "RegisterRequest",
+    "description": "Create a mobile account that owns a synced profile across devices.\n\n``email`` / ``phone`` are optional at registration but strongly advised:\nthey unlock OTP verification and self-serve password recovery (the only\nway to recover an account today)."
+   },
+   "ResetPasswordRequest": {
+    "properties": {
+     "user_id": {
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 2,
+      "pattern": "^[A-Za-z0-9_.-]+$",
+      "title": "User Id"
+     },
+     "code": {
+      "type": "string",
+      "maxLength": 8,
+      "minLength": 4,
+      "pattern": "^[0-9]{4,8}$",
+      "title": "Code"
+     },
+     "new_password": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 6,
+      "title": "New Password"
+     }
+    },
+    "type": "object",
+    "required": [
+     "user_id",
+     "code",
+     "new_password"
+    ],
+    "title": "ResetPasswordRequest",
+    "description": "Recover an account using a reset OTP instead of the old password."
+   },
+   "RiskRequest": {
+    "properties": {
+     "user_id": {
+      "type": "string",
+      "title": "User Id"
+     },
+     "activity": {
+      "type": "string",
+      "title": "Activity",
+      "description": "free-text, e.g. 'run', 'beach', 'commute'"
+     },
+     "city": {
+      "type": "string",
+      "title": "City",
+      "default": "pune"
+     },
+     "scenario": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Scenario"
+     }
+    },
+    "type": "object",
+    "required": [
+     "user_id",
+     "activity"
+    ],
+    "title": "RiskRequest"
+   },
+   "SimulationResult": {
+    "properties": {
+     "alert": {
+      "$ref": "#/components/schemas/DisasterAlert"
+     },
+     "affected_users": {
+      "items": {
+       "$ref": "#/components/schemas/PushTarget"
+      },
+      "type": "array",
+      "title": "Affected Users",
+      "default": []
+     }
+    },
+    "type": "object",
+    "required": [
+     "alert"
+    ],
+    "title": "SimulationResult"
+   },
+   "SyncActivity": {
+    "properties": {
+     "type": {
+      "type": "string",
+      "title": "Type"
+     },
+     "label": {
+      "type": "string",
+      "title": "Label",
+      "default": ""
+     },
+     "label_hi": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Label Hi"
+     },
+     "time": {
+      "type": "string",
+      "title": "Time",
+      "default": "09:00"
+     }
+    },
+    "type": "object",
+    "required": [
+     "type"
+    ],
+    "title": "SyncActivity",
+    "description": "A scheduled activity on the mobile profile."
+   },
+   "SyncLocation": {
+    "properties": {
+     "type": {
+      "type": "string",
+      "title": "Type",
+      "default": "home"
+     },
+     "label": {
+      "type": "string",
+      "title": "Label",
+      "default": ""
+     }
+    },
+    "type": "object",
+    "title": "SyncLocation",
+    "description": "A saved place (home/work/school/farm) on the mobile profile."
+   },
+   "UserUpdate": {
+    "properties": {
+     "display_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Display Name"
+     },
+     "personas": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Personas"
+     },
+     "language": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Language"
+     },
+     "city": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "City"
+     },
+     "health": {
+      "anyOf": [
+       {
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Health"
+     }
+    },
+    "type": "object",
+    "title": "UserUpdate"
+   },
+   "ValidationError": {
+    "properties": {
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        }
+       ]
+      },
+      "type": "array",
+      "title": "Location"
+     },
+     "msg": {
+      "type": "string",
+      "title": "Message"
+     },
+     "type": {
+      "type": "string",
+      "title": "Error Type"
+     }
+    },
+    "type": "object",
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "ValidationError"
+   },
+   "WarningSeverity": {
+    "type": "string",
+    "enum": [
+     "green",
+     "yellow",
+     "orange",
+     "red"
+    ],
+    "title": "WarningSeverity"
+   },
+   "app__admin__router__LoginRequest": {
+    "properties": {
+     "username": {
+      "type": "string",
+      "title": "Username"
+     },
+     "password": {
+      "type": "string",
+      "title": "Password"
+     }
+    },
+    "type": "object",
+    "required": [
+     "username",
+     "password"
+    ],
+    "title": "LoginRequest"
+   },
+   "app__models__schemas__LoginRequest": {
+    "properties": {
+     "user_id": {
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 2,
+      "pattern": "^[A-Za-z0-9_.-]+$",
+      "title": "User Id"
+     },
+     "password": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Password"
+     }
+    },
+    "type": "object",
+    "required": [
+     "user_id",
+     "password"
+    ],
+    "title": "LoginRequest"
+   }
+  }
+ }
+}

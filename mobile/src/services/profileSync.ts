@@ -1,7 +1,13 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import type { UserProfile } from '../engine';
+import {
+  parseAccountExport,
+  parseAuthSession,
+  parseNotificationList,
+  parseProfileSync,
+} from '../api/contract';
+import { kvGet, kvGetJson, kvRemove, kvSet, kvSetJson } from './db';
 
 const SERVER_KEY = '@mausam/sync_server';
 const LEGACY_TOKEN_KEY = '@mausam/sync_token';
@@ -9,21 +15,45 @@ const SYNC_TIME_KEY = '@mausam/sync_times';
 
 const tokenKeyFor = (userId: string) => `mausam_sync_token_${userId}`;
 
+const secureGet = async (key: string): Promise<string | null> => {
+  try {
+    if (Platform.OS === 'web') return kvGet(key);
+    return await SecureStore.getItemAsync(key);
+  } catch {
+    return null;
+  }
+};
+
+const secureSet = async (key: string, value: string): Promise<void> => {
+  try {
+    if (Platform.OS === 'web') {
+      if (value) await kvSet(key, value);
+      else await kvRemove(key);
+      return;
+    }
+    if (value) await SecureStore.setItemAsync(key, value);
+    else await SecureStore.deleteItemAsync(key).catch(() => undefined);
+  } catch {
+    // never store tokens in plaintext AsyncStorage on native
+    if (Platform.OS !== 'web') throw new Error('Unable to save login securely');
+  }
+};
+
 export async function getSyncServer(): Promise<string | null> {
-  return AsyncStorage.getItem(SERVER_KEY);
+  return kvGet(SERVER_KEY);
 }
 
 export async function setSyncServer(url: string): Promise<void> {
   const clean = url.trim().replace(/\/+$/, '');
   if (!clean) {
-    await AsyncStorage.removeItem(SERVER_KEY);
+    await kvRemove(SERVER_KEY);
     return;
   }
   const validated = validateServerUrl(clean);
   if (!validated) {
     throw new Error('Sync server must use https:// (http:// only for localhost in development)');
   }
-  await AsyncStorage.setItem(SERVER_KEY, validated);
+  await kvSet(SERVER_KEY, validated);
 }
 
 /**
@@ -48,31 +78,47 @@ export function validateServerUrl(raw: string): string | null {
   return null;
 }
 
-// ---- token storage: OS keychain/keystore on native, localStorage on web ----
+// ---- session expiry: 401s invalidate the local token & force re-login ----
 
-async function secureGet(key: string): Promise<string | null> {
-  try {
-    if (Platform.OS === 'web') return AsyncStorage.getItem(key);
-    return await SecureStore.getItemAsync(key);
-  } catch {
-    return null;
+/** Raised when the sync server rejects our bearer token (revoked/expired). */
+export class AuthExpiredError extends Error {
+  readonly sessionExpired = true;
+  constructor(message = 'Session expired') {
+    super(message);
+    this.name = 'AuthExpiredError';
   }
 }
 
-async function secureSet(key: string, value: string): Promise<void> {
-  try {
-    if (Platform.OS === 'web') {
-      if (value) await AsyncStorage.setItem(key, value);
-      else await AsyncStorage.removeItem(key);
-      return;
-    }
-    if (value) await SecureStore.setItemAsync(key, value);
-    else await SecureStore.deleteItemAsync(key).catch(() => undefined);
-  } catch {
-    // never store tokens in plaintext AsyncStorage on native
-    if (Platform.OS !== 'web') throw new Error('Unable to save login securely');
+type SessionExpiredListener = (userId: string) => void;
+const sessionExpiredListeners: SessionExpiredListener[] = [];
+
+/** Subscribe to session-expiry events (fires when any protected call gets a
+ * 401). Returns an unsubscribe function. Used by App.tsx to route the user
+ * back to the auth gate automatically. */
+export function subscribeSessionExpired(cb: SessionExpiredListener): () => void {
+  sessionExpiredListeners.push(cb);
+  return () => {
+    const i = sessionExpiredListeners.indexOf(cb);
+    if (i >= 0) sessionExpiredListeners.splice(i, 1);
+  };
+}
+
+function emitSessionExpired(userId: string): void {
+  for (const cb of sessionExpiredListeners) cb(userId);
+}
+
+/** On a 401, drop the stored token for this user, notify the app to re-auth,
+ * and throw a typed {@link AuthExpiredError} to the caller. Safe to call for
+ * every protected endpoint after `fetch` resolves. */
+function guard(res: Response, userId: string): void {
+  if (res.status === 401) {
+    void setAuthToken(userId, null);
+    emitSessionExpired(userId);
+    throw new AuthExpiredError(`Session expired for ${userId}`);
   }
 }
+
+// ---- token storage: OS keychain/keystore on native, SQLite web fallback ----
 
 /** Auth token for a specific user (keyed per user id — never shared device-wide). */
 export async function getAuthToken(userId: string): Promise<string | null> {
@@ -80,11 +126,11 @@ export async function getAuthToken(userId: string): Promise<string | null> {
   let token = await secureGet(key);
   // One-time migration from the pre-per-user legacy key, then remove it.
   if (!token && Platform.OS !== 'web') {
-    const legacy = await AsyncStorage.getItem(LEGACY_TOKEN_KEY);
+    const legacy = await kvGet(LEGACY_TOKEN_KEY);
     if (legacy) {
       token = legacy;
       await secureSet(key, legacy);
-      await AsyncStorage.removeItem(LEGACY_TOKEN_KEY);
+      await kvRemove(LEGACY_TOKEN_KEY);
     }
   }
   return token;
@@ -97,12 +143,7 @@ export async function setAuthToken(userId: string, token: string | null): Promis
 // ---- per-user last-sync timestamps (for pull conflict detection) ----------
 
 async function getSyncTimes(): Promise<Record<string, string>> {
-  try {
-    const raw = await AsyncStorage.getItem(SYNC_TIME_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
+  return (await kvGetJson<Record<string, string>>(SYNC_TIME_KEY)) ?? {};
 }
 
 async function getLastSyncedAt(userId: string): Promise<string | null> {
@@ -113,13 +154,13 @@ async function getLastSyncedAt(userId: string): Promise<string | null> {
 async function recordSyncedAt(userId: string, iso: string): Promise<void> {
   const times = await getSyncTimes();
   times[userId] = iso;
-  await AsyncStorage.setItem(SYNC_TIME_KEY, JSON.stringify(times));
+  await kvSetJson(SYNC_TIME_KEY, times);
 }
 
 async function clearSyncedAt(userId: string): Promise<void> {
   const times = await getSyncTimes();
   delete times[userId];
-  await AsyncStorage.setItem(SYNC_TIME_KEY, JSON.stringify(times));
+  await kvSetJson(SYNC_TIME_KEY, times);
 }
 
 export async function lastSyncedAt(userId: string): Promise<string | null> {
@@ -134,23 +175,30 @@ async function baseUrl(server?: string): Promise<string> {
   return validated;
 }
 
-/** Create an account (user id + password) and return a bearer token. */
+export interface AuthSession {
+  token: string;
+  verified: boolean;
+  contactVerificationRequired: boolean;
+  message: string;
+}
+
+/** Create an account (user id + password + optional contact) and get a token. */
 export async function registerAccount(
   server: string,
   userId: string,
   password: string,
-): Promise<string> {
+  contact?: { email?: string; phone?: string },
+): Promise<AuthSession> {
   const base = await baseUrl(server);
+  const body: Record<string, unknown> = { user_id: userId.trim(), password };
+  if (contact?.email) body.email = contact.email;
+  if (contact?.phone) body.phone = contact.phone;
   const res = await fetch(`${base}/api/v1/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ user_id: userId.trim(), password }),
+    body: JSON.stringify(body),
   });
-  const json = (await res.json().catch(() => ({}))) as { token?: string; detail?: string };
-  if (!res.ok || !json.token) {
-    throw new Error((json.detail as string) ?? `Registration failed (${res.status})`);
-  }
-  return json.token;
+  return parseAuthResponse(res, 'Registration failed');
 }
 
 /** Log in to an existing account and return a bearer token. */
@@ -158,18 +206,218 @@ export async function loginAccount(
   server: string,
   userId: string,
   password: string,
-): Promise<string> {
+): Promise<AuthSession> {
   const base = await baseUrl(server);
   const res = await fetch(`${base}/api/v1/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ user_id: userId.trim(), password }),
   });
-  const json = (await res.json().catch(() => ({}))) as { token?: string; detail?: string };
+  return parseAuthResponse(res, 'Login failed');
+}
+
+async function parseAuthResponse(res: Response, fallback: string): Promise<AuthSession> {
+  const json = (await res.json().catch(() => ({}))) as Partial<AuthSession> & { detail?: string; user_id?: string };
   if (!res.ok || !json.token) {
-    throw new Error((json.detail as string) ?? `Login failed (${res.status})`);
+    throw new Error(json.detail ?? `${fallback} (${res.status})`);
   }
-  return json.token;
+  return parseAuthSession(json);
+}
+
+/** Request a one-time-password for contact verification or password recovery. */
+export async function requestOtp(
+  server: string,
+  userId: string,
+  purpose: 'verify_email' | 'verify_phone' | 'reset_password',
+  contact?: string,
+): Promise<{ sentTo?: string; ttlMinutes: number; devCode?: string }> {
+  const base = await baseUrl(server);
+  const res = await fetch(`${base}/api/v1/auth/request-otp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId.trim(), purpose, contact }),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    dev_code?: string; sent_to?: string; ttl_minutes?: number; detail?: string;
+  };
+  if (!res.ok) throw new Error(json.detail ?? `OTP request failed (${res.status})`);
+  return { sentTo: json.sent_to, ttlMinutes: json.ttl_minutes ?? 10, devCode: json.dev_code };
+}
+
+/** Verify a one-time-password (binds a verified contact, returns a token). */
+export async function verifyOtp(
+  server: string,
+  userId: string,
+  purpose: 'verify_email' | 'verify_phone',
+  code: string,
+): Promise<AuthSession> {
+  const base = await baseUrl(server);
+  const res = await fetch(`${base}/api/v1/auth/verify-otp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId.trim(), purpose, code }),
+  });
+  return parseAuthResponse(res, 'Verification failed');
+}
+
+/** Recover an account with a reset OTP (invalidates all prior sessions). */
+export async function resetPassword(
+  server: string,
+  userId: string,
+  code: string,
+  newPassword: string,
+): Promise<AuthSession> {
+  const base = await baseUrl(server);
+  const res = await fetch(`${base}/api/v1/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId.trim(), code, new_password: newPassword }),
+  });
+  return parseAuthResponse(res, 'Password reset failed');
+}
+
+/** Revoke every session for the account (sign out everywhere). */
+export async function logoutAllDevices(
+  server: string,
+  userId: string,
+  token: string,
+): Promise<AuthSession> {
+  const base = await baseUrl(server);
+  const res = await fetch(`${base}/api/v1/auth/logout-all`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  guard(res, userId);
+  return parseAuthResponse(res, 'Sign-out failed');
+}
+
+/** Permanently delete the account (right-to-erasure under DPDP). */
+export async function deleteAccount(
+  server: string,
+  userId: string,
+  token: string,
+): Promise<void> {
+  const base = await baseUrl(server);
+  const res = await fetch(`${base}/api/v1/auth/account`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  guard(res, userId);
+  if (!res.ok) {
+    const json = (await res.json().catch(() => ({}))) as { detail?: string };
+    throw new Error(json.detail ?? `Account deletion failed (${res.status})`);
+  }
+  await setAuthToken(userId, null);
+  await clearSyncedAt(userId);
+}
+
+/** Register this device for server-push with the backend. */
+export async function registerPushToken(
+  server: string,
+  userId: string,
+  token: string,
+  expoPushToken: string,
+  platform: 'android' | 'ios',
+): Promise<void> {
+  const base = await baseUrl(server);
+  const res = await fetch(`${base}/api/v1/users/${encodeURIComponent(userId)}/push-token`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ token: expoPushToken, platform }),
+  });
+  guard(res, userId);
+  if (!res.ok) {
+    const json = (await res.json().catch(() => ({}))) as { detail?: string };
+    throw new Error(json.detail ?? `Push registration failed (${res.status})`);
+  }
+}
+
+/** Unregister this device from server-push. */
+export async function unregisterPushToken(
+  server: string,
+  userId: string,
+  token: string,
+  expoPushToken: string,
+): Promise<void> {
+  const base = await baseUrl(server);
+  const res = await fetch(`${base}/api/v1/users/${encodeURIComponent(userId)}/push-token`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ token: expoPushToken }),
+  });
+  guard(res, userId);
+  if (!res.ok) {
+    const json = (await res.json().catch(() => ({}))) as { detail?: string };
+    throw new Error(json.detail ?? `Push unregister failed (${res.status})`);
+  }
+}
+
+export interface ServerNotification {
+  id: string;
+  alertId: string;
+  severity: 'green' | 'yellow' | 'orange' | 'red';
+  eventType: string;
+  headline: string;
+  body: string;
+  region: string;
+  read: boolean;
+  createdAt: string;
+}
+
+/** Pull the durable alert inbox from the server (in-app notification centre). */
+export async function fetchNotifications(
+  server: string,
+  userId: string,
+  token: string,
+): Promise<{ unread: number; items: ServerNotification[] }> {
+  const base = await baseUrl(server);
+  const res = await fetch(`${base}/api/v1/users/${encodeURIComponent(userId)}/notifications`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  guard(res, userId);
+  const json = (await res.json().catch(() => ({}))) as {
+    unread?: number; items?: unknown[]; detail?: string;
+  };
+  if (!res.ok) throw new Error(json.detail ?? `Fetching notifications failed (${res.status})`);
+  const contract = parseNotificationList(json);
+  const items: ServerNotification[] = contract.items.map((n) => ({
+    id: n.id || n.alert_id,
+    alertId: n.alert_id,
+    severity: n.severity,
+    eventType: n.event_type,
+    headline: n.headline,
+    body: n.body,
+    region: n.region,
+    read: n.read,
+    createdAt: n.created_at,
+  }));
+  return { unread: contract.unread, items };
+}
+
+/** Mark one server notification read. */
+export async function ackNotification(
+  server: string,
+  userId: string,
+  token: string,
+  notificationId: string,
+): Promise<void> {
+  const base = await baseUrl(server);
+  const res = await fetch(
+    `${base}/api/v1/users/${encodeURIComponent(userId)}/notifications/${encodeURIComponent(notificationId)}/ack`,
+    { method: 'POST', headers: { Authorization: `Bearer ${token}` } },
+  );
+  guard(res, userId);
+  if (!res.ok) {
+    const json = (await res.json().catch(() => ({}))) as { detail?: string };
+    throw new Error(json.detail ?? `Ack failed (${res.status})`);
+  }
 }
 
 /** Map the mobile UserProfile into the backend ProfileSync payload. */
@@ -188,6 +436,22 @@ function toPayload(p: UserProfile): Record<string, unknown> {
   };
 }
 
+/** DPDP portability: fetch everything the server holds for this account. */
+export async function exportAccount(
+  userId: string,
+  server?: string,
+  token?: string | null,
+): Promise<unknown> {
+  const base = await baseUrl(server);
+  const res = await fetch(`${base}/api/v1/users/${encodeURIComponent(userId)}/export`, {
+    method: 'GET',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  guard(res, userId);
+  if (!res.ok) throw new Error(`Export failed (${res.status})`);
+  return parseAccountExport(await res.json());
+}
+
 export async function pushProfile(
   p: UserProfile,
   server?: string,
@@ -202,6 +466,7 @@ export async function pushProfile(
     },
     body: JSON.stringify(toPayload(p)),
   });
+  guard(res, p.id);
   if (!res.ok) {
     const json = (await res.json().catch(() => ({}))) as { detail?: string };
     throw new Error((json.detail as string) ?? `Push failed (${res.status})`);
@@ -229,12 +494,13 @@ export async function pullProfile(
     method: 'GET',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
+  guard(res, userId);
   if (res.status === 404) return { status: 'no_backup' };
   if (!res.ok) throw new Error(`Pull failed (${res.status})`);
-  const json = (await res.json()) as { profile?: Record<string, unknown>; updated_at?: string | null };
+  const json = (await res.json()) as Record<string, unknown>;
   if (!json.profile) return { status: 'no_backup' };
-
-  const updatedAt = json.updated_at ?? null;
+  const contract = parseProfileSync(json);
+  const updatedAt = contract.updated_at ?? null;
   if (updatedAt) {
     const local = await getLastSyncedAt(userId);
     if (local && !isLater(updatedAt, local)) {
@@ -242,26 +508,26 @@ export async function pullProfile(
     }
   }
 
-  const d = json.profile;
+  const d = contract.profile;
   const profile: UserProfile = {
-    id: (d.id as string) ?? userId,
-    name: (d.name as string) ?? 'User',
-    nameHi: (d.name_hi as string) ?? (d.name as string),
-    personas: ((d.personas as string[]) ?? []) as UserProfile['personas'],
-    conditions: (d.conditions as string[]) ?? [],
-    activities: ((d.activities as Array<Record<string, unknown>>) ?? []).map((a) => ({
+    id: d.id || userId,
+    name: d.name || 'User',
+    nameHi: d.name_hi ?? d.name,
+    personas: d.personas as UserProfile['personas'],
+    conditions: d.conditions,
+    activities: d.activities.map((a) => ({
       type: (a.type as UserProfile['activities'][number]['type']) ?? 'walk',
-      label: (a.label as string) ?? '',
-      labelHi: (a.label_hi as string) ?? (a.label as string),
-      time: (a.time as string) ?? '09:00',
+      label: a.label,
+      labelHi: a.label_hi ?? a.label,
+      time: a.time,
     })),
-    locations: ((d.locations as Array<Record<string, unknown>>) ?? []).map((l) => ({
-      type: ((l.type as string) ?? 'home') as 'home' | 'work' | 'school' | 'farm',
-      label: (l.label as string) ?? '',
+    locations: d.locations.map((l) => ({
+      type: (l.type as 'home' | 'work' | 'school' | 'farm') ?? 'home',
+      label: l.label,
     })),
-    city: (d.city as string) ?? 'pune',
-    language: ((d.language as string) ?? 'en') as UserProfile['language'],
-    behaviorBias: (d.behavior_bias as Record<string, number>) ?? {},
+    city: d.city,
+    language: d.language,
+    behaviorBias: d.behavior_bias ?? {},
   };
   if (updatedAt) await recordSyncedAt(userId, updatedAt);
   return { status: 'profile', profile, updatedAt: updatedAt ?? new Date().toISOString() };
@@ -278,6 +544,7 @@ export async function deleteProfile(
     method: 'DELETE',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
+  guard(res, userId);
   if (res.status === 404) {
     await clearSyncedAt(userId);
     return;

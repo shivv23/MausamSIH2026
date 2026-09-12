@@ -6,14 +6,12 @@ is the server-rendered management console for IMD operators.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request, Response
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel
 
 from app.admin.deps import AdminDep
-from app.admin.security import cookie_max_age, hash_password, issue_session, verify_password
+from app.admin.security import cookie_max_age, issue_session, verify_password
 from app.admin import store
-from app.core.config import settings
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -200,3 +198,27 @@ async def alert_impact(alert_id: str, _admin: AdminDep = None):
     return {"alert_id": alert.id, "headline": alert.headline,
             "affected": affected, "not_affected": unaffected,
             "total_affected": len(affected), "total_not_affected": len(unaffected)}
+
+
+# ---- push broadcast ---------------------------------------------------------
+
+class PushBroadcast(BaseModel):
+    title: str = "Mausam"
+    body: str = ""
+    region: str = "All India"
+    severity: str = "yellow"
+
+
+@router.post("/push/broadcast")
+async def push_broadcast(body: PushBroadcast, _admin: AdminDep = None):
+    """Send a push notification to every registered device (operator demo)."""
+    from app.services import push as push_service
+    from app.services.store import list_all_push_tokens
+    tokens = [d["expo_push_token"] for d in list_all_push_tokens()]
+    result = await push_service.send_push(
+        tokens=tokens,
+        title=body.title,
+        body=f"{body.region} · {body.body}" if body.body else body.region,
+        data={"alertId": "broadcast", "severity": body.severity},
+    )
+    return {"ok": True, "registered_devices": len(tokens), **result}

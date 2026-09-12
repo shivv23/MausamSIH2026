@@ -1,0 +1,30 @@
+name: EAS Build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  eas-build:
+    name: Production Android build (EAS)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    # Only runs when the EAS project is wired up (secrets set). Implementations
+    # without an EAS account/project stay green by skipping this job.
+    if: ${{ secrets.EXPO_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Install deps
+        run: npm ci
+      - name: EAS Build (production, Android)
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: npx eas-cli build --platform android --profile production --non-interactive

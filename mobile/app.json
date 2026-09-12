@@ -11,7 +11,10 @@
       "backgroundColor": "#F8FAFE"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -19,13 +22,40 @@
         "foregroundImage": "./assets/android-icon-foreground.png"
       },
       "package": "in.gov.mausam.app",
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "allowBackup": false
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "updates": {
+      "enabled": true,
+      "fallbackToCacheTimeout": 0
+    },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-sqlite",
+        {
+          "useSQLCipher": true
+        }
+      ],
+      "expo-splash-screen",
+      "expo-updates",
+      [
+        "expo-notifications",
+        {
+          "color": "#2563EB",
+          "defaultChannel": "default"
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow Mausam to see your approximate location to warn you about weather in your area. Location is checked once at setup, never tracked or shared."
+        }
+      ],
+      "expo-background-task"
     ]
   }
 }

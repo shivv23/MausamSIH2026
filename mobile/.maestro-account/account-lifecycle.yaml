@@ -1,0 +1,75 @@
+appId: host.exp.Exponent
+name: account-lifecycle
+# Full real-account journey against the CI backend (started at 0.0.0.0:8000 on
+# the emulator host):
+#   sign up -> consent onboarding (auto cloud backup) -> Home -> Me -> Log out
+#   -> AuthGate -> sign in -> Home (profile restored from the server).
+#
+# CI runs this suite after `adb shell pm clear host.exp.Exponent` so the app
+# boots at the auth gate with no leftovers from the offline-demo suite.
+---
+- launchApp:
+    clearState: false
+    stopApp: true
+- extendedWaitUntil:
+    visible: "Welcome to Mausam"
+    timeout: 30000
+# Point the client at the CI backend (10.0.2.2 = host loopback from the AVD).
+- tapOn:
+    id: "auth-server"
+- eraseText
+- inputText: "http://10.0.2.2:8000"
+# Sign-up mode is the default; leave email/phone empty so no OTP interrupts.
+- tapOn:
+    id: "auth-id"
+- inputText: "ci_user"
+- tapOn:
+    id: "auth-password"
+- inputText: "hunter2-secure"
+- tapOn:
+    id: "auth-submit"
+# New account -> no backup yet -> DPDP consent onboarding.
+- extendedWaitUntil:
+    visible: "Weather that understands you"
+    timeout: 20000
+- tapOn: "Fitness"
+- scrollUntilVisible:
+    element:
+      text: "Accept & continue"
+    direction: DOWN
+    timeout: 15000
+- tapOn: "Accept & continue"
+# Onboarding auto-backs-up the profile -> Home.
+- extendedWaitUntil:
+    visible: "Home"
+    timeout: 20000
+# The Me tab shows the active cloud session; log out from it.
+- tapOn: "Me"
+- extendedWaitUntil:
+    visible: "Cloud Backup & Sync"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: "Log out"
+    direction: DOWN
+    timeout: 10000
+- tapOn: "Log out"
+# Back at the auth gate.
+- extendedWaitUntil:
+    visible: "Welcome to Mausam"
+    timeout: 15000
+# Sign back in. The account now has a cloud backup, so Home restores directly.
+- tapOn:
+    id: "auth-mode-signin"
+- tapOn:
+    id: "auth-id"
+- inputText: "ci_user"
+- tapOn:
+    id: "auth-password"
+- inputText: "hunter2-secure"
+- tapOn:
+    id: "auth-submit"
+- extendedWaitUntil:
+    visible: "Home"
+    timeout: 20000
+- assertVisible: "Home"

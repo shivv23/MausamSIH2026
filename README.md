@@ -13,7 +13,8 @@ A personalized homepage for the 'Mausam' mobile application: the same official I
 ┌──────────────────────────────────────────────────────────────┐
 │ Mobile App (React Native + TypeScript, Hermes)                │
 │  Onboarding · Personalized Homepage Cards · My Day · Ask      │
-│  WatermelonDB offline cache · MMKV + Keychain · FCM/Notifee   │
+│  expo-sqlite local DB (SQLCipher) · SecureStore keystore      │
+│  Expo push · background task refresh · offline snapshot       │
 └───────────────────────────┬──────────────────────────────────┘
                             │ HTTPS / HTTP2 (gzip/brotli)
 ┌───────────────────────────▼──────────────────────────────────┐
@@ -27,7 +28,7 @@ A personalized homepage for the 'Mausam' mobile application: the same official I
 │   · Alert Orchestrator        · AI/NLG (template-first)        │
 │   · Geospatial (PostGIS)      · Admin Dashboard                │
 ├───────────────────────────────────────────────────────────────┤
-│ PostgreSQL+PostGIS · Redis · Celery/RabbitMQ · MinIO           │
+│ PostgreSQL+PostGIS (opt-in) · Redis/Celery (roadmap)          │
 └───────────────────────────┬──────────────────────────────────┘
 ┌───────────────────────────▼──────────────────────────────────┐
 │ Data Ingestion: IMD · CPCB · INCOIS · ISRO · Open-Meteo        │
@@ -57,7 +58,7 @@ repo
 | Ranking | Interest × Context × Urgency × Time × Location × Behavior |
 | Notification priority | Severity × Location × Activity × Time × Preference |
 | Alert phases | Official / Derived / Informational |
-| Languages | EN + HI bundled; +9 regional lazy-loaded (TA/TE/BN/MR/GU/KN/ML/OR/PA) |
+| Languages | EN + HI (bundled) |
 | Targets | Cold start <2.5 s · homepage p95 <500 ms · crash <0.5% · APK ≈25 MB |
 
 ## Quick Start

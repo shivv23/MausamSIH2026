@@ -1,0 +1,18 @@
+appId: host.exp.Exponent
+name: myday-add-activity
+# Requires auth-and-onboarding to have run (Home is visible).
+# Opens My Day, adds a popular activity (one the Ananya demo hasn't used)
+# and verifies the instant re-score toast.
+---
+- tapOn: "My Day"
+- extendedWaitUntil:
+    visible: "Each plan scored against IMD hourly data"
+    timeout: 10000
+- tapOn: "+ Add activity"
+- extendedWaitUntil:
+    visible: "Evening walk"
+    timeout: 10000
+- tapOn: "Evening walk"
+- extendedWaitUntil:
+    visible: "Added — re-scored instantly"
+    timeout: 5000
