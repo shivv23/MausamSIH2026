@@ -23,7 +23,7 @@ export type PersonaKey =
   | 'events';
 export type Phase = 'official' | 'derived' | 'informational';
 export type Severity = 'green' | 'yellow' | 'orange' | 'red';
-export type Source = 'IMD' | 'CPCB' | 'INCOIS' | 'ISRO' | 'Open-Meteo' | 'Mausam Engine';
+export type Source = 'IMD' | 'CPCB' | 'INCOIS' | 'ISRO' | 'Mausam Engine';
 export type Condition = 'sunny' | 'partly' | 'cloudy' | 'rain' | 'storm' | 'haze' | 'fog' | 'cold' | 'hot' | 'night';
 export type CardType =
   | 'severe_warning'
@@ -1212,7 +1212,6 @@ export function buildHomepage(o: BuildOptions): Homepage {
       { name: 'IMD', status: 'ok', latencyMs: 212 },
       { name: 'CPCB', status: scenario.key === 'aqi_spike' ? 'degraded' : 'ok', latencyMs: scenario.key === 'aqi_spike' ? 1840 : 340 },
       { name: 'INCOIS', status: 'ok', latencyMs: 405 },
-      { name: 'Open-Meteo', status: 'ok', latencyMs: 98 },
     ],
   };
 }

@@ -90,7 +90,6 @@ export default function App() {
     { name: 'CPCB', status: 'ok', latencyMs: 188 },
     { name: 'INCOIS', status: 'ok', latencyMs: 215 },
     { name: 'ISRO', status: 'ok', latencyMs: 310 },
-    { name: 'Open-Meteo', status: 'ok', latencyMs: 95 },
   ]);
 
   const setLang = (l: Lang) => {

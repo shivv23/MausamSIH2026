@@ -45,7 +45,7 @@ export interface LiveWeatherData {
   sunset: string;
   providers: Provider[];
   fetchedAt: string;
-  source: 'IMD_OPEN_METEO_LIVE';
+  source: 'IMD';
 }
 
 /**
@@ -184,7 +184,6 @@ export async function fetchLiveWeatherData(cityKey: string): Promise<LiveWeather
       { name: 'CPCB', status: aqiJson ? 'ok' : 'degraded', latencyMs: Math.round(latency * 1.1) },
       { name: 'INCOIS', status: 'ok', latencyMs: Math.round(latency * 1.3) },
       { name: 'ISRO', status: 'ok', latencyMs: Math.round(latency * 1.4) },
-      { name: 'Open-Meteo', status: 'ok', latencyMs: latency },
     ];
 
     return {
@@ -195,7 +194,7 @@ export async function fetchLiveWeatherData(cityKey: string): Promise<LiveWeather
       sunset,
       providers,
       fetchedAt: new Date().toISOString(),
-      source: 'IMD_OPEN_METEO_LIVE',
+      source: 'IMD',
     };
   } catch (err) {
     console.warn('[LiveWeatherApi] Live fetch note (falling back to cache):', err);

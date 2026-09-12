@@ -263,7 +263,7 @@ export function AlertsScreen({ hp, lang, onExplain }: { hp: Homepage; lang: Lang
             </li>
           ))}
         </ul>
-        <p className="mt-2 text-[10.5px] text-slate-400">{L(lang, 'Fallback chain: IMD → Open-Meteo → cache. Provenance kept per card.', 'फ़ॉलबैक: IMD → Open-Meteo → कैश। हर कार्ड में स्रोत।')}</p>
+        <p className="mt-2 text-[10.5px] text-slate-400">{L(lang, 'Fallback chain: IMD → cache. Provenance kept per card.', 'फ़ॉलबैक: IMD → कैश। हर कार्ड में स्रोत।')}</p>
       </div>
     </div>
   );
