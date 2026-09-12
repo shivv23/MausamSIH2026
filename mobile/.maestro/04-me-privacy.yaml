@@ -1,4 +1,4 @@
-appId: host.exp.Exponent
+appId: host.exp.exponent
 name: me-tab-and-data-privacy
 # Requires the auth-and-onboarding flow to be run first so Home is on screen.
 ---

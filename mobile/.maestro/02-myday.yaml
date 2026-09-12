@@ -1,4 +1,4 @@
-appId: host.exp.Exponent
+appId: host.exp.exponent
 name: myday-add-activity
 # Requires auth-and-onboarding to have run (Home is visible).
 # Opens My Day, adds a popular activity (one the Ananya demo hasn't used)

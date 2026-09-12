@@ -1,16 +1,13 @@
-appId: host.exp.Exponent
+appId: host.exp.exponent
 name: account-lifecycle
 # Full real-account journey against the CI backend (started at 0.0.0.0:8000 on
 # the emulator host):
 #   sign up -> consent onboarding (auto cloud backup) -> Home -> Me -> Log out
 #   -> AuthGate -> sign in -> Home (profile restored from the server).
 #
-# CI runs this suite after `adb shell pm clear host.exp.Exponent` so the app
+# CI runs this suite after `adb shell pm clear host.exp.exponent` so the app
 # boots at the auth gate with no leftovers from the offline-demo suite.
 ---
-- launchApp:
-    clearState: false
-    stopApp: true
 - extendedWaitUntil:
     visible: "Welcome to Mausam"
     timeout: 30000

@@ -1,11 +1,8 @@
-appId: host.exp.Exponent
+appId: host.exp.exponent
 name: auth-and-onboarding
 # Signs in via offline-demo mode and completes the DPDP consent onboarding.
 # No backend required (demo mode is served purely from the emulator).
 ---
-- launchApp:
-    clearState: false
-    stopApp: true
 - extendedWaitUntil:
     visible: "Welcome to Mausam"
     timeout: 20000

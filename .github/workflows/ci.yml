@@ -115,8 +115,11 @@ jobs:
             curl -sfL -o /tmp/expo-go.apk "https://github.com/expo/expo-go-releases/releases/download/Expo-Go-57.0.9/Expo-Go-57.0.9.apk" && adb install -r /tmp/expo-go.apk
             adb shell am start -a android.intent.action.VIEW -d "exp://10.0.2.2:8081" && sleep 40
             adb devices; adb shell dumpsys window | grep -m1 mCurrentFocus || true; maestro --version
-            cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro --debug-output /tmp/maestro-offline
-            cd mobile && adb shell pm clear host.exp.Exponent
+            cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro/01-onboarding.yaml --debug-output /tmp/maestro-offline
+            cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro/02-myday.yaml --debug-output /tmp/maestro-offline
+            cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro/03-alerts.yaml --debug-output /tmp/maestro-offline
+            cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro/04-me-privacy.yaml --debug-output /tmp/maestro-offline
+            cd mobile && adb shell pm clear host.exp.exponent
             cd mobile && adb shell am start -a android.intent.action.VIEW -d "exp://10.0.2.2:8081"
             cd mobile && sleep 30
-            cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro-account --debug-output /tmp/maestro-account
+            cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro-account/account-lifecycle.yaml --debug-output /tmp/maestro-account

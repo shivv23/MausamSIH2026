@@ -1,4 +1,4 @@
-appId: host.exp.Exponent
+appId: host.exp.exponent
 name: alerts-notification-centre
 # Requires auth-and-onboarding to have run (Home is visible).
 # Opens the Alerts tab and verifies the official/derived/Info already-rendered
