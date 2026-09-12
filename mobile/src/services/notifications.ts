@@ -1,24 +1,38 @@
-import * as Notifications from 'expo-notifications';
+import { isRunningInExpoGo } from 'expo';
 import { Platform } from 'react-native';
+import type * as ExpoNotifications from 'expo-notifications';
 import type { DisasterAlertWithPolygon, NotificationSettings, Severity } from '../types';
 import { DEFAULT_NOTIFICATION_SETTINGS } from '../types';
 import { kvGetJson, kvSetJson } from './db';
 
 const NOTIF_SETTINGS_KEY = '@mausam/notification_settings';
 
-// Configure how notifications behave when the app is in foreground
-try {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    }),
-  });
-} catch {
-  // Ignore in environments where notifications native module is unavailable
+// expo-notifications cannot be imported inside Expo Go on Android (SDK 53+): the
+// package throws while the module graph is being evaluated. It is therefore loaded
+// lazily, and only when the app runs outside of Expo Go (dev/production build).
+const IS_NOTIFICATIONS_AVAILABLE = Platform.OS !== 'web' && !isRunningInExpoGo();
+
+let notificationsModule: typeof ExpoNotifications | null = null;
+
+async function loadNotificationsModule(): Promise<typeof ExpoNotifications | null> {
+  if (!IS_NOTIFICATIONS_AVAILABLE) return null;
+  if (!notificationsModule) {
+    notificationsModule = await import('expo-notifications');
+    try {
+      notificationsModule.setNotificationHandler({
+        handleNotification: async () => ({
+          shouldShowAlert: true,
+          shouldPlaySound: true,
+          shouldSetBadge: true,
+          shouldShowBanner: true,
+          shouldShowList: true,
+        }),
+      });
+    } catch {
+      // Native notifications module unavailable; ignore.
+    }
+  }
+  return notificationsModule;
 }
 
 /**
@@ -26,9 +40,8 @@ try {
  */
 export async function registerForPushNotificationsAsync(): Promise<boolean> {
   try {
-    // expo-notifications has no web push support and getPermissionsAsync can
-    // hang; web builds must never block first render on push setup.
-    if (Platform.OS === 'web') return false;
+    const Notifications = await loadNotificationsModule();
+    if (!Notifications) return false;
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {
         name: 'Mausam Weather Alerts',
@@ -142,6 +155,11 @@ export async function dispatchAlertNotification(params: {
   if (!filter.deliver) {
     console.log(`[Alert Orchestrator] Suppressed notification: ${filter.reason}`);
     return { delivered: false, reason: filter.reason };
+  }
+
+  const Notifications = await loadNotificationsModule();
+  if (!Notifications) {
+    return { delivered: false, reason: 'Push unavailable in Expo Go (use a development build)' };
   }
 
   try {
