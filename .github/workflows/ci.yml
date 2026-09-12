@@ -114,8 +114,9 @@ jobs:
             curl -sf "http://127.0.0.1:8081/index.bundle?platform=android&dev=true&hot=false&minify=false" -o /dev/null || true
             curl -sfL -o /tmp/expo-go.apk "https://github.com/expo/expo-go-releases/releases/download/Expo-Go-57.0.9/Expo-Go-57.0.9.apk" && adb install -r /tmp/expo-go.apk
             adb shell am start -a android.intent.action.VIEW -d "exp://10.0.2.2:8081" && sleep 40
-            cd mobile && maestro test .maestro --debug-output /tmp/maestro-offline
+            adb devices; adb shell dumpsys window | grep -m1 mCurrentFocus || true; maestro --version
+            cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro --debug-output /tmp/maestro-offline
             cd mobile && adb shell pm clear host.exp.Exponent
             cd mobile && adb shell am start -a android.intent.action.VIEW -d "exp://10.0.2.2:8081"
             cd mobile && sleep 30
-            cd mobile && maestro test .maestro-account --debug-output /tmp/maestro-account
+            cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro-account --debug-output /tmp/maestro-account
