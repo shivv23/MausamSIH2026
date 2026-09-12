@@ -87,6 +87,12 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+      - name: Enable KVM
+        run: |
+          ls -l /dev/kvm
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
       - name: Install Maestro CLI
         run: |
           curl -fsSL "https://get.maestro.mobile.dev" | bash
@@ -108,7 +114,9 @@ jobs:
       - uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 28
+          arch: x86_64
           avd-name: dev28
+          ram-size: 2048M
           script: |
             cd mobile && adb wait-for-device && (npx expo start --port 8081 > /tmp/expo.log 2>&1 &) && for i in $(seq 1 90); do curl -sf http://127.0.0.1:8081/status >/dev/null 2>&1 && break; sleep 2; done
             curl -sf "http://127.0.0.1:8081/index.bundle?platform=android&dev=true&hot=false&minify=false" -o /dev/null || true
