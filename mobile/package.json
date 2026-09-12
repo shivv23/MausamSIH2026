@@ -35,7 +35,6 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
-    "openapi-typescript": "^7.13.0",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -46,7 +45,6 @@
     "typecheck": "tsc --noEmit",
     "export:web": "expo export --platform web",
     "prebuild": "expo prebuild",
-    "api:gen": "openapi-typescript openapi.json -o src/api/v1.ts",
     "e2e:android": "maestro test .maestro"
   },
   "private": true

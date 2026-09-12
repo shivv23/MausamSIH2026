@@ -20,6 +20,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    # weather_warnings stores alert polygons in PostGIS geometry; enable the
+    # extension first so the Geometry column type resolves on a fresh DB
+    # (the extension itself only ships in postgis-enabled images).
+    op.execute("CREATE EXTENSION IF NOT EXISTS postgis")
     op.create_table(
         "users",
         sa.Column("id", sa.String(64), primary_key=True),
