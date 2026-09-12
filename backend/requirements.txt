@@ -10,6 +10,8 @@ alembic==1.14.1
 # Optional alert fan-out + dedupe cache (only used when the broker is wired).
 celery==5.4.0
 redis==5.2.1
+# Password hashing (admin accounts) - PBKDF2-SHA256.
+passlib==1.7.4
 
 # test & quality
 pytest==8.3.4

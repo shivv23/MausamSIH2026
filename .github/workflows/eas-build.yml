@@ -12,9 +12,12 @@ jobs:
     defaults:
       run:
         working-directory: mobile
-    # Only runs when the EAS project is wired up (secrets set). Implementations
-    # without an EAS account/project stay green by skipping this job.
-    if: ${{ secrets.EXPO_TOKEN != '' }}
+    # Only builds when the EAS project is wired up (EXPO_TOKEN set, exposed
+    # via a job-level env so an undefined secret doesn't fail the run).
+    # Implementations without an EAS account/project stay green by skipping
+    # the build step.
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,6 +28,5 @@ jobs:
       - name: Install deps
         run: npm ci
       - name: EAS Build (production, Android)
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        if: ${{ env.EXPO_TOKEN != '' }}
         run: npx eas-cli build --platform android --profile production --non-interactive

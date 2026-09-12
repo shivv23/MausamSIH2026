@@ -83,9 +83,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - uses: mobile-dev-inc/setup-maestro@v3
+      - uses: actions/setup-java@v4
         with:
-          install-tooling: true
+          distribution: temurin
+          java-version: "17"
+      - name: Install Maestro CLI
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
       - name: Install deps
         run: npm ci
       - name: Install backend deps
