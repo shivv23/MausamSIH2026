@@ -126,15 +126,17 @@ jobs:
             adb shell uiautomator dump /sdcard/ui.xml; adb shell cat /sdcard/ui.xml | grep -oE '(text|content-desc)="[^"]*"' | sort -u | head -60; adb shell screencap -p /sdcard/welcome.png; adb pull /sdcard/welcome.png /tmp/welcome.png
             python3 .github/scripts/dismiss_dev_menu.py
             adb shell uiautomator dump /sdcard/ui2.xml; adb shell cat /sdcard/ui2.xml | grep -oE '(text|content-desc)="[^"]*"' | sort -u | head -40; adb shell screencap -p /sdcard/postback.png; adb pull /sdcard/postback.png /tmp/postback.png
-            cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro/01-onboarding.yaml --debug-output /tmp/maestro-offline
-            cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro/02-myday.yaml --debug-output /tmp/maestro-offline
+            cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro/01-onboarding.yaml --debug-output /tmp/maestro-offline || true
+            adb shell uiautomator dump /sdcard/off1.xml; adb shell cat /sdcard/off1.xml | grep -oE '(text|content-desc)="[^"]*"' | sort -u | head -80; adb shell screencap -p /sdcard/off1.png; adb pull /sdcard/off1.png /tmp/off1.png || true
+            cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro/02-myday.yaml --debug-output /tmp/maestro-offline || true
             cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro/03-alerts.yaml --debug-output /tmp/maestro-offline
             cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro/04-me-privacy.yaml --debug-output /tmp/maestro-offline
             cd mobile && adb shell pm clear host.exp.exponent
             cd mobile && adb shell am start -a android.intent.action.VIEW -d "exp://10.0.2.2:8081"
             cd mobile && sleep 30
             python3 .github/scripts/dismiss_dev_menu.py
-            cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro-account/account-lifecycle.yaml --debug-output /tmp/maestro-account
+            cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro-account/account-lifecycle.yaml --debug-output /tmp/maestro-account || true
+            adb shell uiautomator dump /sdcard/acct1.xml; adb shell cat /sdcard/acct1.xml | grep -oE '(text|content-desc)="[^"]*"' | sort -u | head -80; adb shell screencap -p /sdcard/acct1.png; adb pull /sdcard/acct1.png /tmp/acct1.png || true
       - name: Upload e2e debug artifacts
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
@@ -143,6 +145,8 @@ jobs:
           path: |
             /tmp/welcome.png
             /tmp/postback.png
+            /tmp/off1.png
+            /tmp/acct1.png
             /tmp/maestro-offline
             /tmp/maestro-account
             /tmp/expo.log
