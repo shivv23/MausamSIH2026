@@ -6,7 +6,6 @@ name: auth-and-onboarding
 - tapOn:
     text: "Continue"
     optional: true
-- pressKey: Back
 - extendedWaitUntil:
     visible: "Welcome to Mausam"
     timeout: 45000

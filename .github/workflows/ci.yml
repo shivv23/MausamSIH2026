@@ -124,7 +124,7 @@ jobs:
             adb shell am start -a android.intent.action.VIEW -d "exp://10.0.2.2:8081" && sleep 40
             adb devices; adb shell dumpsys window | grep -m1 mCurrentFocus || true; maestro --version
             adb shell uiautomator dump /sdcard/ui.xml; adb shell cat /sdcard/ui.xml | grep -oE '(text|content-desc)="[^"]*"' | sort -u | head -60; adb shell screencap -p /sdcard/welcome.png; adb pull /sdcard/welcome.png /tmp/welcome.png
-            adb shell input keyevent 4; sleep 2; adb shell input keyevent 4; sleep 3
+            python3 ../.github/scripts/dismiss_dev_menu.py
             adb shell uiautomator dump /sdcard/ui2.xml; adb shell cat /sdcard/ui2.xml | grep -oE '(text|content-desc)="[^"]*"' | sort -u | head -40; adb shell screencap -p /sdcard/postback.png; adb pull /sdcard/postback.png /tmp/postback.png
             cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro/01-onboarding.yaml --debug-output /tmp/maestro-offline
             cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro/02-myday.yaml --debug-output /tmp/maestro-offline
@@ -133,7 +133,7 @@ jobs:
             cd mobile && adb shell pm clear host.exp.exponent
             cd mobile && adb shell am start -a android.intent.action.VIEW -d "exp://10.0.2.2:8081"
             cd mobile && sleep 30
-            adb shell input keyevent 4; sleep 2; adb shell input keyevent 4; sleep 3
+            python3 ../.github/scripts/dismiss_dev_menu.py
             cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro-account/account-lifecycle.yaml --debug-output /tmp/maestro-account
       - name: Upload e2e debug artifacts
         if: ${{ always() }}
