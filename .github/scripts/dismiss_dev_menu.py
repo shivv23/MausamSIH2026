@@ -34,7 +34,7 @@ def dump_ui() -> str:
 
 
 def visible_texts(ui: str) -> list:
-    return sorted(set(re.findall(r'(?:text|content-desc)="([^"]+)"', ui) - {""}))
+    return sorted(set(re.findall(r'(?:text|content-desc)="([^"]+)"', ui)) - {""})
 
 
 def node_bounds(ui: str, text: str) -> str | None:
