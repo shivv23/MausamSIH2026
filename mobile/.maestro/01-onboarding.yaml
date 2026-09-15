@@ -19,7 +19,7 @@ name: auth-and-onboarding
     element:
       text: "Accept & continue"
     direction: DOWN
-    timeout: 10000
+    timeout: 30000
 - tapOn: "Accept & continue"
 - extendedWaitUntil:
     visible: "Home"

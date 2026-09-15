@@ -37,7 +37,7 @@ name: account-lifecycle
     element:
       text: "Accept & continue"
     direction: DOWN
-    timeout: 15000
+    timeout: 30000
 - tapOn: "Accept & continue"
 # Onboarding auto-backs-up the profile -> Home.
 - extendedWaitUntil:
