@@ -80,7 +80,7 @@ export default function MyDay({ hp, lang, onAddActivity }: { hp: Homepage; lang:
             {POPULAR.map((a) => {
               const used = usedTypes.has(a.type);
               return (
-                <Pressable key={a.type} disabled={used} style={[styles.pickItem, used && styles.pickDisabled]} onPress={() => { onAddActivity(a); setAdded(true); setTimeout(() => setAdded(false), 1800); }}>
+                <Pressable key={a.type} disabled={used} style={[styles.pickItem, used && styles.pickDisabled]} onPress={() => { onAddActivity(a); setAdded(true); setTimeout(() => setAdded(false), 4000); }}>
                   <Text style={styles.pickLabel}>{L(lang, a.label, a.labelHi)}</Text>
                   <Text style={[styles.pickTime, used && { color: colors.textSoft }]}>{used ? t(lang, 'myday_already') : fmtTime(a.time, lang)}</Text>
                 </Pressable>

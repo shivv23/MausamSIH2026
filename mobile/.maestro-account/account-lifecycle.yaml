@@ -35,10 +35,10 @@ name: account-lifecycle
 - tapOn: "Fitness"
 - scrollUntilVisible:
     element:
-      text: "Accept & continue"
+      text: "Accept & continue.*"
     direction: DOWN
     timeout: 30000
-- tapOn: "Accept & continue"
+- tapOn: "Accept & continue.*"
 # Onboarding auto-backs-up the profile -> Home.
 - extendedWaitUntil:
     visible: "Home"

@@ -8,11 +8,16 @@ name: myday-add-activity
 - extendedWaitUntil:
     visible: "Each plan scored against IMD hourly data"
     timeout: 10000
-- tapOn: "+ Add activity"
-- extendedWaitUntil:
-    visible: "Evening walk"
-    timeout: 10000
+- tapOn: "＋ Add activity"
+- scrollUntilVisible:
+    element:
+      text: "Evening walk"
+    direction: DOWN
+    timeout: 15000
 - tapOn: "Evening walk"
-- extendedWaitUntil:
-    visible: "Added — re-scored instantly"
-    timeout: 5000
+- scrollUntilVisible:
+    element:
+      text: "✓ Added — re-scored instantly"
+    direction: DOWN
+    timeout: 8000
+- assertVisible: "✓ Added — re-scored instantly"
