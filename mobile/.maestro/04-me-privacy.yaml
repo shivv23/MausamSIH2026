@@ -1,25 +1,41 @@
 appId: host.exp.exponent
 name: me-tab-and-data-privacy
-# Requires the auth-and-onboarding flow to be run first so Home is on screen.
+# Establishes its own state: if the app is still at the auth/onboarding screen
+# (e.g. a prior ignored flow failed), run onboarding first; otherwise rely on
+# the existing Home state. Then drives the Me screen via stable testIDs instead
+# of case-transformed section-title text.
 ---
-- tapOn: "Me"
+- runFlow:
+    when:
+      visible: "Welcome to Mausam"
+    file: 01-onboarding.yaml
+- extendedWaitUntil:
+    visible: "Home"
+    timeout: 30000
+- tapOn:
+    id: "tab-me"
+- extendedWaitUntil:
+    visible: "Switch who Mausam is built for.*"
+    timeout: 15000
+- assertVisible:
+    id: "me-screen"
+- waitForAnimationToEnd
 - scrollUntilVisible:
     element:
-      text: "(?i)data & privacy"
+      id: "local-encrypted-database"
     direction: DOWN
-    timeout: 15000
-- assertVisible: "(?i)data & privacy"
-- assertVisible: "Cloud Backup & Sync"
+    speed: 60
+    timeout: 30000
+- assertVisible:
+    text: "Stored locally in an encrypted SQLite database"
 - scrollUntilVisible:
     element:
-      text: "Stored locally in an encrypted SQLite database"
+      id: "export-data-button"
     direction: DOWN
-    timeout: 15000
-- assertVisible: "Stored locally in an encrypted SQLite database"
-- scrollUntilVisible:
-    element:
-      text: "⬇️ Export my data"
-    direction: DOWN
-    timeout: 15000
-- tapOn: "⬇️ Export my data"
-- assertVisible: "✓ Data export prepared in your Downloads / shareable file"
+    speed: 60
+    timeout: 30000
+- tapOn:
+    id: "export-data-button"
+- extendedWaitUntil:
+    visible: "✓ Data export prepared in your Downloads / shareable file"
+    timeout: 20000

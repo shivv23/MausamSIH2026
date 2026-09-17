@@ -10,6 +10,7 @@ import { colors } from '../theme';
 import { ackNotification, deleteAccount, deleteProfile, exportAccount, fetchNotifications, getAuthToken, getSyncServer, lastSyncedAt, loginAccount, logoutAllDevices, logoutUser, pushProfile, pullProfile, registerAccount, setAuthToken, setSyncServer, type ServerNotification } from '../services/profileSync';
 import { databaseEngineLabel, getConsent, kvSetJson, listArchivedNotifications, markArchiveRead, snapshotMetadata } from '../services/db';
 import { checkForUpdates, reloadUpdate } from '../services/updates';
+import { showToast } from '../components/Toast';
 import type { StalenessInfo } from '../types';
 
 interface Props {
@@ -407,9 +408,11 @@ export default function Me({
         file.create({ overwrite: true, intermediates: true });
         file.write(json);
         setSyncMsg(t(lang, 'privacy_exported'));
+        showToast(t(lang, 'privacy_exported').replace(/^✓\s*/, ''), 'success');
         await Sharing.shareAsync(file.uri, { mimeType: 'application/json', dialogTitle: t(lang, 'privacy_export') });
       } else {
         setSyncMsg(t(lang, 'privacy_exported'));
+        showToast(t(lang, 'privacy_exported').replace(/^✓\s*/, ''), 'success');
       }
       setSyncErr(false);
     } catch (e) {
@@ -452,7 +455,7 @@ export default function Me({
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false} testID="me-screen">
         {/* Header */}
         <View style={styles.head}>
           <View style={styles.avatar}>
@@ -846,7 +849,7 @@ export default function Me({
         </Section>
 
         {/* Data Privacy & Offline Cache Diagnostics (§8.4) */}
-        <Section title={t(lang, 'data_privacy')}>
+        <Section title={t(lang, 'data_privacy')} testID="data-privacy-section">
           <Text style={styles.privacyText}>{t(lang, 'on_device')}</Text>
           <View style={styles.cacheCard}>
             <View style={styles.cacheRow}>
@@ -868,7 +871,7 @@ export default function Me({
               <Text style={styles.cacheVal}>{dbMeta.totalSnapshots}</Text>
             </View>
           </View>
-          <Text style={styles.privacyText}>{t(lang, 'privacy_stored_locally')}</Text>
+          <Text style={styles.privacyText} testID="local-encrypted-database">{t(lang, 'privacy_stored_locally')}</Text>
           <Text style={styles.privacyMeta}>{t(lang, 'privacy_retention')}</Text>
           <Text style={styles.privacyMeta}>{t(lang, 'privacy_permissions')}</Text>
           {consentAt ? (
@@ -876,6 +879,7 @@ export default function Me({
           ) : null}
           <View style={styles.syncRow}>
             <TouchableOpacity
+              testID="export-data-button"
               style={[styles.syncBtn, syncBusy && styles.syncBtnDisabled]}
               disabled={syncBusy}
               onPress={handleExport}
@@ -901,10 +905,10 @@ export default function Me({
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, testID }: { title: string; children: React.ReactNode; testID?: string }) {
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+      <Text testID={testID} style={styles.sectionTitle}>{title}</Text>
       {children}
     </View>
   );

@@ -23,7 +23,7 @@ export default function TabBar({ current, onTab, lang }: { current: Tab; onTab: 
         {tabs.map(({ key, label }) => {
           const active = current === key;
           return (
-            <TouchableOpacity key={key} style={styles.tab} onPress={() => onTab(key)}>
+            <TouchableOpacity key={key} testID={`tab-${key}`} style={styles.tab} onPress={() => onTab(key)}>
               <Text style={[styles.icon, active && styles.iconActive]}>{ICONS[key]}</Text>
               <Text style={[styles.label, active && styles.labelActive]}>{label}</Text>
             </TouchableOpacity>
