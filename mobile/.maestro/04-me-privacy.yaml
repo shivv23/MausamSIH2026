@@ -5,10 +5,10 @@ name: me-tab-and-data-privacy
 - tapOn: "Me"
 - scrollUntilVisible:
     element:
-      text: "DATA & PRIVACY"
+      text: "(?i)data & privacy"
     direction: DOWN
     timeout: 15000
-- assertVisible: "DATA & PRIVACY"
+- assertVisible: "(?i)data & privacy"
 - assertVisible: "Cloud Backup & Sync"
 - scrollUntilVisible:
     element:

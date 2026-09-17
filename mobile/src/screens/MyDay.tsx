@@ -6,6 +6,7 @@ import { fmtTime, L } from '../engine';
 import { t } from '../i18n';
 import { colors, CONDITION_ICON, statusColor } from '../theme';
 import { ScoreRing } from '../components/ui';
+import { showToast } from '../components/Toast';
 
 const POPULAR: Activity[] = [
   { type: 'walk', label: 'Evening walk', labelHi: 'शाम की सैर', time: '18:00' },
@@ -19,7 +20,6 @@ const POPULAR: Activity[] = [
 
 export default function MyDay({ hp, lang, onAddActivity }: { hp: Homepage; lang: Lang; onAddActivity: (a: Activity) => void }) {
   const [picking, setPicking] = useState(false);
-  const [added, setAdded] = useState(false);
   const usedTypes = new Set(hp.user.activities.map((a) => a.type));
   const good = hp.myDay.filter((m) => m.status === 'go').length;
   return (
@@ -80,13 +80,12 @@ export default function MyDay({ hp, lang, onAddActivity }: { hp: Homepage; lang:
             {POPULAR.map((a) => {
               const used = usedTypes.has(a.type);
               return (
-                <Pressable key={a.type} disabled={used} style={[styles.pickItem, used && styles.pickDisabled]} onPress={() => { onAddActivity(a); setAdded(true); setTimeout(() => setAdded(false), 4000); }}>
+                <Pressable key={a.type} disabled={used} style={[styles.pickItem, used && styles.pickDisabled]} onPress={() => { onAddActivity(a); showToast(t(lang, 'myday_added'), 'success'); }}>
                   <Text style={styles.pickLabel}>{L(lang, a.label, a.labelHi)}</Text>
                   <Text style={[styles.pickTime, used && { color: colors.textSoft }]}>{used ? t(lang, 'myday_already') : fmtTime(a.time, lang)}</Text>
                 </Pressable>
               );
             })}
-            {added ? <Text style={styles.pickAdded}>✓ {t(lang, 'myday_added')}</Text> : null}
           </View>
         ) : null}
         <Text style={styles.bottom}>{good}/{hp.myDay.length} {L(lang, 'plans on track · re-scored every 15 min', 'योजनाएँ ठीक · हर 15 मिनट पुनः स्कोर')}</Text>
@@ -125,6 +124,5 @@ const styles = StyleSheet.create({
   pickDisabled: { opacity: 0.45 },
   pickLabel: { fontSize: 12.5, fontWeight: '700', color: '#1E293B' },
   pickTime: { fontSize: 11, fontWeight: '600', color: '#475569' },
-  pickAdded: { textAlign: 'center', fontSize: 11.5, fontWeight: '700', color: '#047857', marginTop: 2 },
   bottom: { textAlign: 'center', fontSize: 10.5, color: colors.textSoft, marginTop: 12 },
 });

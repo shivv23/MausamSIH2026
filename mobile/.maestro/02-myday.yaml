@@ -15,9 +15,7 @@ name: myday-add-activity
     direction: DOWN
     timeout: 15000
 - tapOn: "Evening walk"
-- scrollUntilVisible:
-    element:
-      text: "✓ Added — re-scored instantly"
-    direction: DOWN
-    timeout: 8000
+- extendedWaitUntil:
+    visible: "✓ Added — re-scored instantly"
+    timeout: 15000
 - assertVisible: "✓ Added — re-scored instantly"
