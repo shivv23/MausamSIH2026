@@ -131,6 +131,9 @@ jobs:
             cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro/02-myday.yaml --debug-output /tmp/maestro-offline || true
             cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro/03-alerts.yaml --debug-output /tmp/maestro-offline
             cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro/04-me-privacy.yaml --debug-output /tmp/maestro-offline
+            m4=$?
+            adb shell uiautomator dump /sdcard/me4.xml 2>/dev/null; adb shell cat /sdcard/me4.xml 2>/dev/null | grep -oE '(text|content-desc)="[^"]*"' | sort -u | head -80; adb shell screencap -p /sdcard/me4.png 2>/dev/null; adb pull /sdcard/me4.png /tmp/me4.png 2>/dev/null
+            if [ "$m4" -ne 0 ]; then exit "$m4"; fi
             cd mobile && adb shell pm clear host.exp.exponent
             cd mobile && adb shell am start -a android.intent.action.VIEW -d "exp://10.0.2.2:8081"
             cd mobile && sleep 30
@@ -146,6 +149,7 @@ jobs:
             /tmp/welcome.png
             /tmp/postback.png
             /tmp/off1.png
+            /tmp/me4.png
             /tmp/acct1.png
             /tmp/maestro-offline
             /tmp/maestro-account
