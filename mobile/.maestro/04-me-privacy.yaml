@@ -15,7 +15,8 @@ name: me-tab-and-data-privacy
 - tapOn:
     id: "tab-me"
 - extendedWaitUntil:
-    visible: "Switch who Mausam is built for.*"
+    visible:
+      id: "me-screen"
     timeout: 15000
 - assertVisible:
     id: "me-screen"
