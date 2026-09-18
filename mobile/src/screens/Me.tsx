@@ -13,6 +13,10 @@ import { checkForUpdates, reloadUpdate } from '../services/updates';
 import { showToast } from '../components/Toast';
 import type { StalenessInfo } from '../types';
 
+/** Under e2e we skip the OS share sheet: it detaches the app window, so the
+ *  persistent in-app export status cannot be asserted by Maestro. */
+const E2E_MODE = process.env.EXPO_PUBLIC_E2E === '1';
+
 interface Props {
   hp: Homepage;
   lang: Lang;
@@ -63,6 +67,7 @@ export default function Me({
   const [notifsMode, setNotifsMode] = useState<'server' | 'local' | 'none'>('none');
   const [dbMeta, setDbMeta] = useState<{ engine: string; totalSnapshots: number }>({ engine: '…', totalSnapshots: 0 });
   const [consentAt, setConsentAt] = useState('');
+  const [exportStatus, setExportStatus] = useState<{ msg: string; err: boolean } | null>(null);
 
   React.useEffect(() => {
     getSyncServer().then((s) => setSyncServerState(s ?? 'http://localhost:8000'));
@@ -382,6 +387,7 @@ export default function Me({
   const handleExport = async () => {
     setSyncBusy(true);
     setSyncMsg('');
+    setExportStatus(null);
     try {
       const local = {
         exported_at: new Date().toISOString(),
@@ -403,7 +409,7 @@ export default function Me({
       const payload = cloud ? { ...(cloud as object), local_device: local } : local;
       await kvSetJson('@mausam/export', payload);
       const json = JSON.stringify(payload, null, 2);
-      if (Platform.OS !== 'web' && (await Sharing.isAvailableAsync())) {
+      if (Platform.OS !== 'web' && !E2E_MODE && (await Sharing.isAvailableAsync())) {
         const file = new File(Paths.document, `mausam-export-${u.id}-${Date.now()}.json`);
         file.create({ overwrite: true, intermediates: true });
         file.write(json);
@@ -414,10 +420,12 @@ export default function Me({
         setSyncMsg(t(lang, 'privacy_exported'));
         showToast(t(lang, 'privacy_exported').replace(/^✓\s*/, ''), 'success');
       }
+      setExportStatus({ msg: t(lang, 'privacy_exported'), err: false });
       setSyncErr(false);
     } catch (e) {
       setSyncErr(true);
       setSyncMsg(t(lang, 'sync_error') + ': ' + (e instanceof Error ? e.message : String(e)));
+      setExportStatus({ msg: t(lang, 'sync_error') + ': ' + (e instanceof Error ? e.message : String(e)), err: true });
     } finally {
       setSyncBusy(false);
     }
@@ -894,6 +902,14 @@ export default function Me({
               <Text style={styles.syncBtnText}>🔄 {t(lang, 'update_check')}</Text>
             </TouchableOpacity>
           </View>
+          {exportStatus ? (
+            <Text
+              testID="data-export-prepared"
+              style={[styles.syncMsg, exportStatus.err && styles.syncMsgErr]}
+            >
+              {exportStatus.msg}
+            </Text>
+          ) : null}
         </Section>
 
         <TouchableOpacity style={styles.redoBtn} onPress={onRedoOnboarding}>

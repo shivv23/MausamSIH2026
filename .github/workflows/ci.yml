@@ -118,7 +118,7 @@ jobs:
           avd-name: dev28
           ram-size: 2048M
           script: |
-            cd mobile && adb wait-for-device && (npx expo start --port 8081 > /tmp/expo.log 2>&1 &) && for i in $(seq 1 90); do curl -sf http://127.0.0.1:8081/status >/dev/null 2>&1 && break; sleep 2; done
+            cd mobile && adb wait-for-device && (EXPO_PUBLIC_E2E=1 npx expo start --port 8081 > /tmp/expo.log 2>&1 &) && for i in $(seq 1 90); do curl -sf http://127.0.0.1:8081/status >/dev/null 2>&1 && break; sleep 2; done
             curl -sf "http://127.0.0.1:8081/index.bundle?platform=android&dev=true&hot=false&minify=false" -o /dev/null || true
             curl -sfL -o /tmp/expo-go.apk "https://github.com/expo/expo-go-releases/releases/download/Expo-Go-57.0.9/Expo-Go-57.0.9.apk" && adb install -r /tmp/expo-go.apk
             adb shell am start -a android.intent.action.VIEW -d "exp://10.0.2.2:8081" && sleep 40
@@ -126,14 +126,27 @@ jobs:
             adb shell uiautomator dump /sdcard/ui.xml; adb shell cat /sdcard/ui.xml | grep -oE '(text|content-desc)="[^"]*"' | sort -u | head -60; adb shell screencap -p /sdcard/welcome.png; adb pull /sdcard/welcome.png /tmp/welcome.png
             python3 .github/scripts/dismiss_dev_menu.py
             adb shell uiautomator dump /sdcard/ui2.xml; adb shell cat /sdcard/ui2.xml | grep -oE '(text|content-desc)="[^"]*"' | sort -u | head -40; adb shell screencap -p /sdcard/postback.png; adb pull /sdcard/postback.png /tmp/postback.png
-            cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro/01-onboarding.yaml --debug-output /tmp/maestro-offline || true
+            # Run every offline flow to completion (each is skipped-by-design when
+            # the app is already in the wrong state) and fail explicitly afterwards
+            # on the first non-zero exit, so 04-me-privacy always gets a chance to
+            # establish its own state and report.
+            set +e
+            cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro/01-onboarding.yaml --debug-output /tmp/maestro-offline
+            m1=$?
             adb shell uiautomator dump /sdcard/off1.xml; adb shell cat /sdcard/off1.xml | grep -oE '(text|content-desc)="[^"]*"' | sort -u | head -80; adb shell screencap -p /sdcard/off1.png; adb pull /sdcard/off1.png /tmp/off1.png || true
-            cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro/02-myday.yaml --debug-output /tmp/maestro-offline || true
+            cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro/02-myday.yaml --debug-output /tmp/maestro-offline
+            m2=$?
             cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro/03-alerts.yaml --debug-output /tmp/maestro-offline
+            m3=$?
             cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test .maestro/04-me-privacy.yaml --debug-output /tmp/maestro-offline
             m4=$?
+            set -e
             adb shell uiautomator dump /sdcard/me4.xml 2>/dev/null; adb shell cat /sdcard/me4.xml 2>/dev/null | grep -oE '(text|content-desc)="[^"]*"' | sort -u | head -80; adb shell screencap -p /sdcard/me4.png 2>/dev/null; adb pull /sdcard/me4.png /tmp/me4.png 2>/dev/null
+            echo "offline Maestro exit codes: 01=$m1 02=$m2 03=$m3 04=$m4"
             if [ "$m4" -ne 0 ]; then exit "$m4"; fi
+            if [ "$m3" -ne 0 ]; then exit "$m3"; fi
+            if [ "$m2" -ne 0 ]; then exit "$m2"; fi
+            if [ "$m1" -ne 0 ]; then exit "$m1"; fi
             cd mobile && adb shell pm clear host.exp.exponent
             cd mobile && adb shell am start -a android.intent.action.VIEW -d "exp://10.0.2.2:8081"
             cd mobile && sleep 30

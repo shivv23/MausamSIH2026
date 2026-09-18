@@ -34,9 +34,20 @@ name: me-tab-and-data-privacy
       id: "export-data-button"
     direction: DOWN
     speed: 60
+    centerElement: true
     timeout: 30000
 - tapOn:
     id: "export-data-button"
+# With EXPO_PUBLIC_E2E=1 the app skips the OS share chooser; on other runs
+# close it (title comes from the Sharing dialogTitle) so the in-app status
+# line becomes the active window again.
+- runFlow:
+    when:
+      visible: "Export my data"
+    commands:
+      - back
 - extendedWaitUntil:
-    visible: "✓ Data export prepared in your Downloads / shareable file"
+    visible:
+      id: "data-export-prepared"
     timeout: 20000
+- assertVisible: "✓ Data export prepared in your Downloads / shareable file"
