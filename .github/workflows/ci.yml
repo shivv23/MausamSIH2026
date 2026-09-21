@@ -122,6 +122,8 @@ jobs:
             curl -sf "http://127.0.0.1:8081/index.bundle?platform=android&dev=true&hot=false&minify=false" -o /dev/null || true
             curl -sfL -o /tmp/expo-go.apk "https://github.com/expo/expo-go-releases/releases/download/Expo-Go-57.0.9/Expo-Go-57.0.9.apk" && adb install -r /tmp/expo-go.apk
             adb shell pm clear host.exp.exponent
+            adb shell pm grant host.exp.exponent android.permission.ACCESS_COARSE_LOCATION || true
+            adb shell pm grant host.exp.exponent android.permission.ACCESS_FINE_LOCATION || true
             adb shell am start -a android.intent.action.VIEW -d "exp://10.0.2.2:8081" && sleep 40
             adb devices; adb shell dumpsys window | grep -m1 mCurrentFocus || true; maestro --version
             adb shell uiautomator dump /sdcard/ui.xml; adb shell cat /sdcard/ui.xml | grep -oE '(text|content-desc)="[^"]*"' | sort -u | head -60; adb shell screencap -p /sdcard/welcome.png; adb pull /sdcard/welcome.png /tmp/welcome.png
@@ -129,6 +131,8 @@ jobs:
             adb shell uiautomator dump /sdcard/ui2.xml; adb shell cat /sdcard/ui2.xml | grep -oE '(text|content-desc)="[^"]*"' | sort -u | head -40; adb shell screencap -p /sdcard/postback.png; adb pull /sdcard/postback.png /tmp/postback.png
             bash .github/scripts/run-maestro-offline.sh
             cd mobile && adb shell pm clear host.exp.exponent
+            adb shell pm grant host.exp.exponent android.permission.ACCESS_COARSE_LOCATION || true
+            adb shell pm grant host.exp.exponent android.permission.ACCESS_FINE_LOCATION || true
             cd mobile && adb shell am start -a android.intent.action.VIEW -d "exp://10.0.2.2:8081"
             cd mobile && sleep 30
             python3 .github/scripts/dismiss_dev_menu.py
