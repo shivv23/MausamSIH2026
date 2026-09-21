@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: mausam-backend
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: LOG_JSON
+        value: "true"
+      - key: DATABASE_ENABLED
+        value: "true"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mausam-db
+          property: connectionString
+      - key: CELERY_ENABLED
+        value: "false"
+      - key: PUSH_ENABLED
+        value: "true"
+      - key: MAUSAM_CORS_ORIGINS
+        value: https://mausam.pages.dev
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_SECRET
+        generateValue: true
+
+databases:
+  - name: mausam-db
+    plan: free
+    databaseName: mausam
+    user: mausam
