@@ -127,36 +127,7 @@ jobs:
             adb shell uiautomator dump /sdcard/ui.xml; adb shell cat /sdcard/ui.xml | grep -oE '(text|content-desc)="[^"]*"' | sort -u | head -60; adb shell screencap -p /sdcard/welcome.png; adb pull /sdcard/welcome.png /tmp/welcome.png
             python3 .github/scripts/dismiss_dev_menu.py
             adb shell uiautomator dump /sdcard/ui2.xml; adb shell cat /sdcard/ui2.xml | grep -oE '(text|content-desc)="[^"]*"' | sort -u | head -40; adb shell screencap -p /sdcard/postback.png; adb pull /sdcard/postback.png /tmp/postback.png
-            run_flow() {
-              name="$1"
-              file="$2"
-              echo "Running $name: $file"
-              cd mobile && MAESTRO_CLI_NO_ANALYTICS=1 timeout 900s maestro test "$file" --debug-output "/tmp/maestro-offline/$name"
-              status=$?
-              echo "$name exit code: $status"
-              return "$status"
-            }
-            # Run every offline flow to completion (each is skipped-by-design when
-            # the app is already in the wrong state) and fail explicitly afterwards
-            # on the first non-zero exit, so 04-me-privacy always gets a chance to
-            # establish its own state and report.
-            set +e
-            run_flow onboarding .maestro/01-onboarding.yaml
-            m1=$?
-            adb shell uiautomator dump /sdcard/off1.xml; adb shell cat /sdcard/off1.xml | grep -oE '(text|content-desc)="[^"]*"' | sort -u | head -80; adb shell screencap -p /sdcard/off1.png; adb pull /sdcard/off1.png /tmp/off1.png || true
-            run_flow myday .maestro/02-myday.yaml
-            m2=$?
-            run_flow alerts .maestro/03-alerts.yaml
-            m3=$?
-            run_flow me-privacy .maestro/04-me-privacy.yaml
-            m4=$?
-            set -e
-            adb shell uiautomator dump /sdcard/me4.xml 2>/dev/null; adb shell cat /sdcard/me4.xml 2>/dev/null | grep -oE '(text|content-desc)="[^"]*"' | sort -u | head -80; adb shell screencap -p /sdcard/me4.png 2>/dev/null; adb pull /sdcard/me4.png /tmp/me4.png 2>/dev/null
-            echo "offline Maestro exit codes: 01=$m1 02=$m2 03=$m3 04=$m4"
-            if [ "$m4" -ne 0 ]; then exit "$m4"; fi
-            if [ "$m3" -ne 0 ]; then exit "$m3"; fi
-            if [ "$m2" -ne 0 ]; then exit "$m2"; fi
-            if [ "$m1" -ne 0 ]; then exit "$m1"; fi
+            bash .github/scripts/run-maestro-offline.sh
             cd mobile && adb shell pm clear host.exp.exponent
             cd mobile && adb shell am start -a android.intent.action.VIEW -d "exp://10.0.2.2:8081"
             cd mobile && sleep 30
