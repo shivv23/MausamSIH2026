@@ -29,22 +29,28 @@ _health_checked: bool = False
 _db_available: bool = True
 
 
+def async_database_url(url: str) -> str:
+    """Normalize a database URL for the asyncpg driver.
+
+    - PaaS (e.g. Render) hand out plain ``postgresql://`` DSNs; SQLAlchemy's
+      async engine needs the ``postgresql+asyncpg://`` scheme or it falls back
+      to sync psycopg2.
+    - asyncpg expresses TLS via the ``ssl`` connect arg, not psycopg2's
+      ``sslmode`` query parameter.
+    """
+    if url.startswith("postgresql://") and "+asyncpg" not in url:
+        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    url = re.sub(r"sslmode=([^&\s]+)", r"ssl=\1", url)
+    return url
+
+
 def _get_engine():
     global _engine, _session_factory
     if _engine is None:
-        # Accept plain postgresql:// URLs (e.g. PaaS connection strings) by
-        # forcing the asyncpg driver; create_async_engine requires the
-        # postgresql+asyncpg:// scheme or it falls back to sync psycopg2.
-        url = settings.database_url
-        if url.startswith("postgresql://") and "+asyncpg" not in url:
-            url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
-        # asyncpg expresses TLS via the "ssl" connect arg, not the psycopg2
-        # "sslmode" query parameter; translate it for PaaS-style DSNs.
-        url = re.sub(r"sslmode=([^&\s]+)", r"ssl=\1", url)
         # Store helpers may run database coroutines in a worker event loop
         # while FastAPI owns the request loop. Do not reuse asyncpg
         # connections across those loops.
-        _engine = create_async_engine(url, poolclass=NullPool, pool_pre_ping=True)
+        _engine = create_async_engine(async_database_url(settings.database_url), poolclass=NullPool, pool_pre_ping=True)
         _session_factory = async_sessionmaker(_engine, expire_on_commit=False, class_=AsyncSession)
     return _engine
 

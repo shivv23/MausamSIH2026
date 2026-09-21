@@ -20,11 +20,12 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 from app.models import orm  # noqa: F401  (imports register tables on Base.metadata)
 from app.core.config import settings
+from app.db import async_database_url
 
 target_metadata = orm.Base.metadata
 
 # Load database URL from app settings (overrides the .ini placeholder).
-config.set_main_option("sqlalchemy.url", settings.database_url)
+config.set_main_option("sqlalchemy.url", async_database_url(settings.database_url))
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
