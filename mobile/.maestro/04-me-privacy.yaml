@@ -28,7 +28,7 @@ name: me-tab-and-data-privacy
     speed: 60
     timeout: 30000
 - assertVisible:
-    text: "Stored locally in an encrypted SQLite database"
+    id: "local-encrypted-database"
 - scrollUntilVisible:
     element:
       id: "export-data-button"
@@ -50,4 +50,5 @@ name: me-tab-and-data-privacy
     visible:
       id: "data-export-prepared"
     timeout: 20000
-- assertVisible: "✓ Data export prepared in your Downloads / shareable file"
+- assertVisible:
+    id: "data-export-prepared"

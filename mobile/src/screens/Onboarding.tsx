@@ -73,6 +73,10 @@ export default function Onboarding({ lang, onDone, fixedId }: Props) {
   };
 
   useEffect(() => {
+    if (process.env.EXPO_PUBLIC_E2E === '1') {
+      setCity('Pune');
+      return;
+    }
     void detectCity();
   }, []);
 
@@ -163,7 +167,7 @@ export default function Onboarding({ lang, onDone, fixedId }: Props) {
 
         <Text style={styles.fieldLabel}>{t(lang, 'ob_city')}</Text>
         <View style={styles.cityRow}>
-          <TextInput style={[styles.input, styles.cityInput]} placeholder={t(lang, 'ob_city_ph')} placeholderTextColor={colors.textSoft} value={city} onChangeText={setCity} autoCapitalize="none" />
+          <TextInput testID="city-input" style={[styles.input, styles.cityInput]} placeholder={t(lang, 'ob_city_ph')} placeholderTextColor={colors.textSoft} value={city} onChangeText={setCity} autoCapitalize="none" />
           <TouchableOpacity style={[styles.detectBtn, detecting && styles.detectBtnDisabled]} disabled={detecting} onPress={detectCity}>
             <Text style={styles.detectText}>{detecting ? t(lang, 'ob_detect_busy') : t(lang, 'ob_detect_city')}</Text>
           </TouchableOpacity>

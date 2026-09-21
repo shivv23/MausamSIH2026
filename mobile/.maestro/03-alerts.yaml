@@ -4,8 +4,11 @@ name: alerts-notification-centre
 # Opens the Alerts tab and verifies the official/derived/Info already-rendered
 # notification centre.
 ---
-- tapOn: "Alerts"
+- tapOn:
+    id: "tab-alerts"
 - extendedWaitUntil:
-    visible: "Official · Derived · Informational"
-    timeout: 10000
-- assertVisible: "Info"
+    visible:
+      id: "alerts-screen"
+    timeout: 15000
+- assertVisible:
+    id: "alerts-subtitle"

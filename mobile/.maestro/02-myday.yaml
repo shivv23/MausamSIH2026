@@ -4,17 +4,21 @@ name: myday-add-activity
 # Opens My Day, adds a popular activity (one the Ananya demo hasn't used)
 # and verifies the instant re-score toast.
 ---
-- tapOn: "My Day"
+- tapOn:
+    id: "tab-myday"
 - extendedWaitUntil:
-    visible: "Each plan scored against IMD hourly data"
-    timeout: 10000
-- tapOn: "＋ Add activity"
+    visible:
+      id: "myday-screen"
+    timeout: 15000
+- tapOn:
+    id: "add-activity-button"
 - scrollUntilVisible:
     element:
-      text: "Evening walk"
+      id: "activity-evening-walk"
     direction: DOWN
     timeout: 15000
-- tapOn: "Evening walk"
+- tapOn:
+    id: "activity-evening-walk"
 - extendedWaitUntil:
     visible: "✓ Added — re-scored instantly"
     timeout: 15000

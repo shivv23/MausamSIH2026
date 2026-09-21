@@ -23,7 +23,7 @@ export default function MyDay({ hp, lang, onAddActivity }: { hp: Homepage; lang:
   const usedTypes = new Set(hp.user.activities.map((a) => a.type));
   const good = hp.myDay.filter((m) => m.status === 'go').length;
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={styles.safe} edges={['top']} testID="myday-screen">
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>{t(lang, 'myday_title')}</Text>
         <Text style={styles.sub}>{t(lang, 'myday_sub')}</Text>
@@ -71,7 +71,7 @@ export default function MyDay({ hp, lang, onAddActivity }: { hp: Homepage; lang:
           })}
         </View>
 
-        <TouchableOpacity style={styles.addBtn} onPress={() => setPicking((v) => !v)}>
+        <TouchableOpacity testID="add-activity-button" style={styles.addBtn} onPress={() => setPicking((v) => !v)}>
           <Text style={styles.addText}>{picking ? '✕ ' : '＋ '}{t(lang, 'add_activity')}</Text>
         </TouchableOpacity>
 
@@ -79,8 +79,9 @@ export default function MyDay({ hp, lang, onAddActivity }: { hp: Homepage; lang:
           <View style={styles.picker}>
             {POPULAR.map((a) => {
               const used = usedTypes.has(a.type);
+              const testId = a.label === 'Evening walk' ? 'activity-evening-walk' : undefined;
               return (
-                <Pressable key={a.type} disabled={used} style={[styles.pickItem, used && styles.pickDisabled]} onPress={() => { onAddActivity(a); showToast(t(lang, 'myday_added'), 'success'); }}>
+                <Pressable key={a.type} testID={testId} disabled={used} style={[styles.pickItem, used && styles.pickDisabled]} onPress={() => { onAddActivity(a); showToast(t(lang, 'myday_added'), 'success'); }}>
                   <Text style={styles.pickLabel}>{L(lang, a.label, a.labelHi)}</Text>
                   <Text style={[styles.pickTime, used && { color: colors.textSoft }]}>{used ? t(lang, 'myday_already') : fmtTime(a.time, lang)}</Text>
                 </Pressable>

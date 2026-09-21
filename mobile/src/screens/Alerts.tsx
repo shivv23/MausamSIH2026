@@ -44,13 +44,13 @@ export default function Alerts({
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={styles.safe} edges={['top']} testID="alerts-screen">
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>{t(lang, 'alerts_title')}</Text>
-            <Text style={styles.sub}>{t(lang, 'alerts_sub')}</Text>
+            <Text style={styles.sub} testID="alerts-subtitle">{t(lang, 'alerts_sub')}</Text>
           </View>
           {onOpenNotifSettings ? (
             <TouchableOpacity style={styles.notifBtn} onPress={onOpenNotifSettings}>
