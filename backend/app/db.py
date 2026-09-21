@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Optional
 
 import logging
+import re
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
@@ -37,6 +38,9 @@ def _get_engine():
         url = settings.database_url
         if url.startswith("postgresql://") and "+asyncpg" not in url:
             url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        # asyncpg expresses TLS via the "ssl" connect arg, not the psycopg2
+        # "sslmode" query parameter; translate it for PaaS-style DSNs.
+        url = re.sub(r"sslmode=([^&\s]+)", r"ssl=\1", url)
         # Store helpers may run database coroutines in a worker event loop
         # while FastAPI owns the request loop. Do not reuse asyncpg
         # connections across those loops.
