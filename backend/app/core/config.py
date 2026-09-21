@@ -1,7 +1,8 @@
 """Application settings (env-driven)."""
 from __future__ import annotations
-
 from functools import lru_cache
+
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -75,7 +76,10 @@ class Settings(BaseSettings):
 
     # CORS: comma-separated allow-list. Empty ("") keeps the permissive dev
     # default ("*"); production deploys MUST set MAUSAM_CORS_ORIGINS.
-    cors_allow_origins: str = ""
+    cors_allow_origins: str = Field(
+        default="",
+        validation_alias=AliasChoices("MAUSAM_CORS_ORIGINS", "CORS_ALLOW_ORIGINS"),
+    )
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
