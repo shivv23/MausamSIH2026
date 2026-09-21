@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
@@ -31,7 +31,7 @@ const DEFAULT_ACTIVITIES: Partial<Record<PersonaKey, { type: ActivityType; label
 export default function Onboarding({ lang, onDone, fixedId }: Props) {
   const [selected, setSelected] = useState<PersonaKey[]>([]);
   const [name, setName] = useState('');
-  const [city, setCity] = useState('pune');
+  const [city, setCity] = useState('');
   const [conditions, setConditions] = useState<string[]>([]);
   const [consent, setConsent] = useState<Consent>('both');
   const [detecting, setDetecting] = useState(false);
@@ -72,6 +72,10 @@ export default function Onboarding({ lang, onDone, fixedId }: Props) {
     }
   };
 
+  useEffect(() => {
+    void detectCity();
+  }, []);
+
   const toggleConsent = (c: Exclude<Consent, 'none'>): void => {
     const next = consent === c ? 'none' : consent === 'both' ? (c === 'profile' ? 'notifications' : 'profile') : c === 'profile' ? 'both' : 'both';
     setConsent(next);
@@ -95,7 +99,11 @@ export default function Onboarding({ lang, onDone, fixedId }: Props) {
       return;
     }
     const cityObj = CITIES.find((c) => c.name.toLowerCase() === city.trim().toLowerCase() || c.key === city.trim().toLowerCase());
-    const cityKey = cityObj?.key ?? 'pune';
+    if (!cityObj) {
+      Alert.alert(t(lang, 'ob_city'), t(lang, 'ob_city_required'));
+      return;
+    }
+    const cityKey = cityObj.key;
     const isHi = lang === 'hi';
     const userName = name.trim() || (isHi ? 'उपयोकर्ता' : 'User');
     const userNameHi = isHi ? userName : userName;

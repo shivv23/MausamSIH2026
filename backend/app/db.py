@@ -11,6 +11,7 @@ from typing import Optional
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
 
@@ -27,7 +28,10 @@ _db_available: bool = True
 def _get_engine():
     global _engine, _session_factory
     if _engine is None:
-        _engine = create_async_engine(settings.database_url, pool_pre_ping=True)
+        # Store helpers may run database coroutines in a worker event loop
+        # while FastAPI owns the request loop. Do not reuse asyncpg
+        # connections across those loops.
+        _engine = create_async_engine(settings.database_url, poolclass=NullPool, pool_pre_ping=True)
         _session_factory = async_sessionmaker(_engine, expire_on_commit=False, class_=AsyncSession)
     return _engine
 

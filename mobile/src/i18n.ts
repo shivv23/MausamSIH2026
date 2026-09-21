@@ -129,6 +129,7 @@ const dict = {
   ob_detect_denied: ['Location permission denied — type your city instead.', 'लोकेशन अनुमति अस्वीकृत — शहर मैन्युअल रूप से टाइप करें।'] as const,
   ob_detect_fail: ['Could not determine your location right now.', 'अभी आपका स्थान निर्धारित नहीं हो सका।'] as const,
   ob_detect_nearby: ['Detected: {city}', 'पहचाना गया: {city}'] as const,
+  ob_city_required: ['Choose a supported city or allow location access to continue.', 'जारी रखने के लिए कोई समर्थित शहर चुनें या लोकेशन अनुमति दें।'] as const,
   ob_notif_title: ['Stay ahead, not annoyed', 'आगे रहें, परेशान नहीं'] as const,
   ob_notif_sub: ['Only what crosses your thresholds. Official red alerts always come through.', 'केवल आपकी सीमा पार करने वाली। आधिकारिक रेड अलर्ट हमेशा।'] as const,
   ob_finish: ['Build my homepage', 'मेरा होमपेज बनाएँ'] as const,

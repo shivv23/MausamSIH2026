@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Lang, UserProfile } from '../engine';
 import { t } from '../i18n';
@@ -33,11 +33,12 @@ type VerifyPurpose = 'verify_email' | 'verify_phone';
 
 const ID_RE = /^[A-Za-z0-9_.-]{2,64}$/;
 const CODE_RE = /^\d{6}$/;
+const DEFAULT_SYNC_SERVER = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 
 export default function AuthGate({ lang, defaultAccountId = '', notice, onAuthed, onSkip }: Props) {
   const [screen, setScreen] = useState<Screen>('main');
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
-  const [server, setServer] = useState('http://localhost:8000');
+  const [server, setServer] = useState(DEFAULT_SYNC_SERVER);
   const [accountId, setAccountId] = useState(defaultAccountId);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -63,7 +64,7 @@ export default function AuthGate({ lang, defaultAccountId = '', notice, onAuthed
   const [recoverCodeSent, setRecoverCodeSent] = useState(false);
 
   useEffect(() => {
-    getSyncServer().then((s) => setServer(s ?? 'http://localhost:8000'));
+    getSyncServer().then((s) => setServer(s ?? DEFAULT_SYNC_SERVER));
   }, []);
 
   const finishAuth = async (session: AuthSession, id: string) => {
@@ -351,7 +352,11 @@ export default function AuthGate({ lang, defaultAccountId = '', notice, onAuthed
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={styles.container}>
+        <ScrollView
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
           <Text style={styles.logo}>⛅</Text>
           <Text style={styles.title}>{t(lang, 'auth_title')}</Text>
           <Text style={styles.subtitle}>{t(lang, 'auth_sub')}</Text>
@@ -379,19 +384,6 @@ export default function AuthGate({ lang, defaultAccountId = '', notice, onAuthed
               </TouchableOpacity>
             ))}
           </View>
-
-          <Text style={styles.label}>{t(lang, 'auth_server')}</Text>
-          <TextInput
-            style={styles.input}
-            value={server}
-            onChangeText={setServer}
-            testID="auth-server"
-            placeholder="https://mausam.example.com"
-            placeholderTextColor="#94A3B8"
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="url"
-          />
 
           <Text style={styles.label}>{t(lang, 'auth_account_id')}</Text>
           <TextInput
@@ -484,7 +476,7 @@ export default function AuthGate({ lang, defaultAccountId = '', notice, onAuthed
           <TouchableOpacity style={styles.skipBtn} onPress={onSkip} disabled={busy}>
             <Text style={styles.skipText}>{t(lang, 'auth_skip')}</Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

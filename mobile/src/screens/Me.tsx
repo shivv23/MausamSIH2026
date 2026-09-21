@@ -16,6 +16,7 @@ import type { StalenessInfo } from '../types';
 /** Under e2e we skip the OS share sheet: it detaches the app window, so the
  *  persistent in-app export status cannot be asserted by Maestro. */
 const E2E_MODE = process.env.EXPO_PUBLIC_E2E === '1';
+const DEFAULT_SYNC_SERVER = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 
 interface Props {
   hp: Homepage;
@@ -70,7 +71,7 @@ export default function Me({
   const [exportStatus, setExportStatus] = useState<{ msg: string; err: boolean } | null>(null);
 
   React.useEffect(() => {
-    getSyncServer().then((s) => setSyncServerState(s ?? 'http://localhost:8000'));
+    getSyncServer().then((s) => setSyncServerState(s ?? DEFAULT_SYNC_SERVER));
     getAuthToken(u.id).then((tok) => {
       setSyncTokenState(tok);
       if (tok) {
@@ -684,7 +685,7 @@ export default function Me({
             style={styles.syncInput}
             value={syncServer}
             onChangeText={setSyncServerState}
-            placeholder="http://localhost:8000"
+            placeholder={DEFAULT_SYNC_SERVER}
             placeholderTextColor="#94A3B8"
             autoCapitalize="none"
             autoCorrect={false}
