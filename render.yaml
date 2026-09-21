@@ -23,7 +23,7 @@ services:
       - key: PUSH_ENABLED
         value: "true"
       - key: MAUSAM_CORS_ORIGINS
-        value: https://mausam.pages.dev
+        value: https://mausam-16i.pages.dev
       - key: ADMIN_USERNAME
         sync: false
       - key: ADMIN_PASSWORD
