@@ -30,8 +30,9 @@ name: account-lifecycle
     id: "auth-submit"
 # New account -> no backup yet -> DPDP consent onboarding.
 - extendedWaitUntil:
-    visible: "Weather that understands you"
-    timeout: 20000
+    visible:
+      id: "offline-onboarding-screen"
+    timeout: 30000
 - tapOn: "Fitness"
 - scrollUntilVisible:
     element:

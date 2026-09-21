@@ -121,6 +121,7 @@ jobs:
             cd mobile && adb wait-for-device && (EXPO_PUBLIC_E2E=1 npx expo start --port 8081 > /tmp/expo.log 2>&1 &) && for i in $(seq 1 90); do curl -sf http://127.0.0.1:8081/status >/dev/null 2>&1 && break; sleep 2; done
             curl -sf "http://127.0.0.1:8081/index.bundle?platform=android&dev=true&hot=false&minify=false" -o /dev/null || true
             curl -sfL -o /tmp/expo-go.apk "https://github.com/expo/expo-go-releases/releases/download/Expo-Go-57.0.9/Expo-Go-57.0.9.apk" && adb install -r /tmp/expo-go.apk
+            adb shell pm clear host.exp.exponent
             adb shell am start -a android.intent.action.VIEW -d "exp://10.0.2.2:8081" && sleep 40
             adb devices; adb shell dumpsys window | grep -m1 mCurrentFocus || true; maestro --version
             adb shell uiautomator dump /sdcard/ui.xml; adb shell cat /sdcard/ui.xml | grep -oE '(text|content-desc)="[^"]*"' | sort -u | head -60; adb shell screencap -p /sdcard/welcome.png; adb pull /sdcard/welcome.png /tmp/welcome.png

@@ -136,7 +136,7 @@ export default function Onboarding({ lang, onDone, fixedId }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} testID="offline-onboarding-screen">
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>{t(lang, 'ob_welcome_title')}</Text>
         <Text style={styles.subtitle}>{t(lang, 'ob_welcome_sub')}</Text>

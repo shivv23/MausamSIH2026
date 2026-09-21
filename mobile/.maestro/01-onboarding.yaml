@@ -11,8 +11,9 @@ name: auth-and-onboarding
     timeout: 45000
 - tapOn: "Continue without account (offline demo)"
 - extendedWaitUntil:
-    visible: "Weather that understands you"
-    timeout: 15000
+    visible:
+      id: "offline-onboarding-screen"
+    timeout: 30000
 # Pick a persona (Fitness card) then finish onboarding.
 - tapOn: "Fitness"
 - scrollUntilVisible:
