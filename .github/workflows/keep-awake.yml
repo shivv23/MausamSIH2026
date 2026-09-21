@@ -1,0 +1,13 @@
+name: keep-awake
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping-render:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping backend health endpoint
+        run: curl -fsS --max-time 120 --retry 3 --retry-all-errors -o /dev/null https://mausam-backend-0jc3.onrender.com/health
