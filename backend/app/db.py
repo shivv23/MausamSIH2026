@@ -31,10 +31,16 @@ _db_available: bool = True
 def _get_engine():
     global _engine, _session_factory
     if _engine is None:
+        # Accept plain postgresql:// URLs (e.g. PaaS connection strings) by
+        # forcing the asyncpg driver; create_async_engine requires the
+        # postgresql+asyncpg:// scheme or it falls back to sync psycopg2.
+        url = settings.database_url
+        if url.startswith("postgresql://") and "+asyncpg" not in url:
+            url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
         # Store helpers may run database coroutines in a worker event loop
         # while FastAPI owns the request loop. Do not reuse asyncpg
         # connections across those loops.
-        _engine = create_async_engine(settings.database_url, poolclass=NullPool, pool_pre_ping=True)
+        _engine = create_async_engine(url, poolclass=NullPool, pool_pre_ping=True)
         _session_factory = async_sessionmaker(_engine, expire_on_commit=False, class_=AsyncSession)
     return _engine
 
