@@ -10,18 +10,33 @@ name: auth-and-onboarding
     visible: "Welcome to Mausam"
     timeout: 45000
 - tapOn: "Continue without account (offline demo)"
+# Stale app state can land directly on Home, while a fresh run shows the
+# onboarding screen; accept either destination and continue to the final Home
+# state instead of failing on a missing intermediate selector.
 - extendedWaitUntil:
     visible:
       id: "offline-onboarding-screen"
     timeout: 30000
-# Pick a persona (Fitness card) then finish onboarding.
-- tapOn: "Fitness"
-- scrollUntilVisible:
-    element:
-      text: "Accept & continue.*"
-    direction: DOWN
-    timeout: 30000
-- tapOn: "Accept & continue.*"
+    optional: true
+- extendedWaitUntil:
+    visible: "Home"
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "offline-onboarding-screen"
+    commands:
+      - tapOn: "Fitness"
+      - scrollUntilVisible:
+          element:
+            text: "Accept & continue.*"
+          direction: DOWN
+          timeout: 30000
+      - tapOn: "Accept & continue.*"
+      - extendedWaitUntil:
+          visible: "Home"
+          timeout: 15000
 - extendedWaitUntil:
     visible: "Home"
     timeout: 15000

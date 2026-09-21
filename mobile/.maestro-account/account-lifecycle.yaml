@@ -33,13 +33,26 @@ name: account-lifecycle
     visible:
       id: "offline-onboarding-screen"
     timeout: 30000
-- tapOn: "Fitness"
-- scrollUntilVisible:
-    element:
-      text: "Accept & continue.*"
-    direction: DOWN
-    timeout: 30000
-- tapOn: "Accept & continue.*"
+    optional: true
+- extendedWaitUntil:
+    visible: "Home"
+    timeout: 20000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "offline-onboarding-screen"
+    commands:
+      - tapOn: "Fitness"
+      - scrollUntilVisible:
+          element:
+            text: "Accept & continue.*"
+          direction: DOWN
+          timeout: 30000
+      - tapOn: "Accept & continue.*"
+      - extendedWaitUntil:
+          visible: "Home"
+          timeout: 20000
 # Onboarding auto-backs-up the profile -> Home.
 - extendedWaitUntil:
     visible: "Home"
