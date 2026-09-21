@@ -9,11 +9,14 @@ from __future__ import annotations
 
 from typing import Optional
 
+import logging
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
+
+logger = logging.getLogger("mausam")
 
 _engine = None
 _session_factory: Optional[async_sessionmaker] = None
@@ -59,7 +62,8 @@ async def probe() -> bool:
         async with get_session() as s:
             await s.execute(text("SELECT 1"))
         return True
-    except Exception:
+    except Exception as e:  # noqa: BLE001 - probe must never raise
+        logger.warning("Postgres probe failed: %s: %s", type(e).__name__, e)
         return False
 
 
